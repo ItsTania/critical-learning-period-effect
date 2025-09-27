@@ -19,8 +19,9 @@ from utils.callbacks import SaveModelInformationCallback, valid_acc_epoch_logger
 from utils.data import MNIST_dataset, achille_preprocess, achille_transform_train, achille_blurry_transform_train, save_dataset_examples  # noqa: E402
 
 # Experiment params - general
-NUMBER_RUNS = 5
+NUMBER_RUNS = 1 #5
 EXPERIMENT_DIR = ROOT / Path("artifacts/experiment_results/example")
+SKIP_BASELINE=True
 
 if torch.mps.is_available():
     DEVICE = 'mps'
@@ -31,10 +32,10 @@ else:
 
 
 # Experiment params - taken from Achilles
-MODEL=Achille_MNIST_FC
+MODEL=Achille_MNIST_FC_No_BatchNorm
 ACTIVATION=get_activation('relu')
-PRETRAINING_EPOCHS= 480 # In the paper they test [40 * x for x in range(12)]
-CLEAN_EPOCHS=180
+PRETRAINING_EPOCHS= 1#480 # In the paper they test [40 * x for x in range(12)]
+CLEAN_EPOCHS=1 #180
 LEARNING_RATE=0.005
 BATCH=512#128
 OPTIMIZER=torch.optim.Adam
@@ -164,15 +165,18 @@ if __name__ == "__main__":
     save_dataset_examples(train_dataset, blurry_train_dataset, test_dataset, EXPERIMENT_DIR)
 
     # Train models! Random init
-    random_init_model_histories = train_MNIST_models_from_random_init(
-        train_dataset=train_dataset, 
-        test_dataset=test_dataset, 
-        logging_dir=randominit_logging_dir
-        )
-    
-    gc.collect()
-    print(f"Completed training {NUMBER_RUNS} runs on baseline models starting from random initialisation. Net histories can be found:")
-    print(random_init_model_histories)
+    if SKIP_BASELINE:
+        print("Skipping Baseline!")
+    else:
+        random_init_model_histories = train_MNIST_models_from_random_init(
+            train_dataset=train_dataset, 
+            test_dataset=test_dataset, 
+            logging_dir=randominit_logging_dir
+            )
+
+        gc.collect()
+        print(f"Completed training {NUMBER_RUNS} runs on baseline models starting from random initialisation. Net histories can be found:")
+        print(random_init_model_histories)
 
     # Train models! Pretrain
     pretrain_model_histories, pretrain_model_params = pretrain_MNIST_models(
