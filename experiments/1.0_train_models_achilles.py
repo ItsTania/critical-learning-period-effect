@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 
 import torch
@@ -9,6 +10,9 @@ from skorch import NeuralNetClassifier # type: ignore
 from skorch.helper import predefined_split  # type: ignore
 from skorch.callbacks import ProgressBar # type: ignore
 
+ROOT=Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
 from utils.models.achille import Achille_MNIST_FC
 from utils.callbacks import SaveModelInformationCallback, valid_acc_epoch_logger, checkpoint_at_intervals
 from utils.data import MNIST_dataset, achille_preprocess, achille_transform_train, achille_blurry_transform_train, save_dataset_examples
@@ -16,7 +20,6 @@ from utils.data import MNIST_dataset, achille_preprocess, achille_transform_trai
 # Experiment params - general
 NUMBER_RUNS = 5
 EXPERIMENT_DIR = Path("experiment/27Sept")
-ROOT = Path(__file__).resolve().parent
 
 if torch.mps.is_available():
     DEVICE = 'mps'
