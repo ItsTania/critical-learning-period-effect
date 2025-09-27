@@ -14,12 +14,12 @@ from skorch.callbacks import ProgressBar # type: ignore
 ROOT=Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from utils.models.achille import Achille_MNIST_FC # noqa: E402
+from utils.models.achille import Achille_MNIST_FC, Achille_MNIST_FC_No_BatchNorm, get_activation # noqa: E402
 from utils.callbacks import SaveModelInformationCallback, valid_acc_epoch_logger, get_model_checkpoints  # noqa: E402
 from utils.data import MNIST_dataset, achille_preprocess, achille_transform_train, achille_blurry_transform_train, save_dataset_examples  # noqa: E402
 
 # Experiment params - general
-NUMBER_RUNS = 1#5
+NUMBER_RUNS = 5
 EXPERIMENT_DIR = ROOT / Path("artifacts/experiment_results/example")
 
 if torch.mps.is_available():
@@ -31,8 +31,10 @@ else:
 
 
 # Experiment params - taken from Achilles
-PRETRAINING_EPOCHS= 1#480 # In the paper they test [40 * x for x in range(12)]
-CLEAN_EPOCHS=1 #180
+MODEL=Achille_MNIST_FC
+ACTIVATION=get_activation('relu')
+PRETRAINING_EPOCHS= 480 # In the paper they test [40 * x for x in range(12)]
+CLEAN_EPOCHS=180
 LEARNING_RATE=0.005
 BATCH=512#128
 OPTIMIZER=torch.optim.Adam
@@ -46,7 +48,7 @@ def train_MNIST_models_from_random_init(train_dataset, test_dataset, logging_dir
     for run in trange(NUMBER_RUNS, desc="Random Init Runs"):
         logging_dir_run = logging_dir / f"run_{run}"
         net = NeuralNetClassifier(
-            module=Achille_MNIST_FC,
+            module=MODEL,
             lr=LEARNING_RATE,
             optimizer=OPTIMIZER,
             criterion=CRITERION,
@@ -57,7 +59,8 @@ def train_MNIST_models_from_random_init(train_dataset, test_dataset, logging_dir
                 get_model_checkpoints(str(logging_dir_run/ "checkpoints")),
                 ProgressBar()],
             train_split=predefined_split(test_dataset),
-            classes=dataset_classes
+            classes=dataset_classes,
+            module__activation=ACTIVATION,
             )
         net.fit(train_dataset, y=None, epochs=num_epochs)
 
@@ -77,7 +80,7 @@ def pretrain_MNIST_models(train_dataset, test_dataset, logging_dir: Path, num_ep
     for run in trange(NUMBER_RUNS, desc="Degraded Pretraining Runs"):
         logging_dir_run = logging_dir / f"run_{run}"
         net = NeuralNetClassifier(
-            module=Achille_MNIST_FC,
+            module=MODEL,
             lr=LEARNING_RATE,
             optimizer=OPTIMIZER,
             criterion=CRITERION,
@@ -88,7 +91,8 @@ def pretrain_MNIST_models(train_dataset, test_dataset, logging_dir: Path, num_ep
                 get_model_checkpoints(str(logging_dir_run/ "checkpoints")),
                 ProgressBar()],
             train_split=predefined_split(test_dataset),
-            classes=dataset_classes
+            classes=dataset_classes,
+            module__activation=ACTIVATION,
             )
         net.fit(train_dataset, y=None, epochs=num_epochs)
 
@@ -111,7 +115,7 @@ def train_MNIST_model_from_pretrained_init(pretrained_weights_fp: Path, train_da
     for run in trange(NUMBER_RUNS, desc="Pretrained Init Runs"):
         logging_dir_run = logging_dir / f"run_{run}"
         net = NeuralNetClassifier(
-            module=Achille_MNIST_FC,
+            module=MODEL,
             lr=LEARNING_RATE,
             optimizer=OPTIMIZER,
             criterion=CRITERION,
@@ -122,7 +126,8 @@ def train_MNIST_model_from_pretrained_init(pretrained_weights_fp: Path, train_da
                 get_model_checkpoints(str(logging_dir_run/ "checkpoints")),
                 ProgressBar()],
             train_split=predefined_split(test_dataset),
-            classes=dataset_classes
+            classes=dataset_classes,
+            module__activation=ACTIVATION,
             )
         net.initialize()
         print(f"Loading from {str(pretrained_weights_fp)}")
