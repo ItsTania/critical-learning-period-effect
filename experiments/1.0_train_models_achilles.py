@@ -13,13 +13,13 @@ from skorch.callbacks import ProgressBar # type: ignore
 ROOT=Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from utils.models.achille import Achille_MNIST_FC
-from utils.callbacks import SaveModelInformationCallback, valid_acc_epoch_logger, checkpoint_at_intervals
-from utils.data import MNIST_dataset, achille_preprocess, achille_transform_train, achille_blurry_transform_train, save_dataset_examples
+from utils.models.achille import Achille_MNIST_FC # noqa: E402
+from utils.callbacks import SaveModelInformationCallback, valid_acc_epoch_logger, get_model_checkpoints  # noqa: E402
+from utils.data import MNIST_dataset, achille_preprocess, achille_transform_train, achille_blurry_transform_train, save_dataset_examples  # noqa: E402
 
 # Experiment params - general
 NUMBER_RUNS = 5
-EXPERIMENT_DIR = Path("experiment/27Sept")
+EXPERIMENT_DIR = ROOT / Path("artifacts/experiment_results/example")
 
 if torch.mps.is_available():
     DEVICE = 'mps'
@@ -53,7 +53,7 @@ def train_MNIST_models_from_random_init(train_dataset, test_dataset, logging_dir
             callbacks=[
                 valid_acc_epoch_logger,
                 SaveModelInformationCallback(save_dir=logging_dir_run), 
-                checkpoint_at_intervals,
+                get_model_checkpoints(logging_dir_run/ "checkpoints"),
                 ProgressBar()],
             train_split=predefined_split(test_dataset),
             classes=dataset_classes
@@ -84,7 +84,7 @@ def pretrain_MNIST_models(train_dataset, test_dataset, logging_dir: Path, num_ep
             callbacks=[
                 valid_acc_epoch_logger,
                 SaveModelInformationCallback(save_dir=logging_dir_run), 
-                checkpoint_at_intervals,
+                get_model_checkpoints(logging_dir_run/ "checkpoints"),
                 ProgressBar()],
             train_split=predefined_split(test_dataset),
             classes=dataset_classes
@@ -97,9 +97,9 @@ def pretrain_MNIST_models(train_dataset, test_dataset, logging_dir: Path, num_ep
         df.to_csv(logging_dir_run / "net_history.csv")
         list_of_model_histories.append(logging_dir_run / "net_history.csv")
         
-        model_path = logging_dir_run / "model.pkl"
-        print(f"Saving model parameters to {str(model_path)}") # Both redundant as this is saved through the callback. But am coding quickly at the moment and prefer to have redundancies. 
-        net.save_params(f_params=model_path)
+        model_path = logging_dir_run / "model.safetensors"
+        print(f"Saving model parameters to {str(model_path)}") # Both redundant as this is saved through the callback. But am coding quickly at the moment and prefer to have redundancies and this format makes it easy to load.
+        net.save_params(f_params=str(model_path), use_safetensors=True)
         list_of_model_files.append(model_path)
 
     return list_of_model_histories, list_of_model_files
@@ -117,13 +117,13 @@ def train_MNIST_model_from_pretrained_init(pretrained_weights_fp: Path, train_da
             callbacks=[
                 valid_acc_epoch_logger,
                 SaveModelInformationCallback(save_dir=logging_dir_run), 
-                checkpoint_at_intervals,
+                get_model_checkpoints(logging_dir_run/ "checkpoints"),
                 ProgressBar()],
             train_split=predefined_split(test_dataset),
             classes=dataset_classes
             )
         net.initialize()
-        net.load_params(f_params=str(pretrained_weights_fp))
+        net.load_params(f_params=str(pretrained_weights_fp), use_safetensors=True)
         net.fit(train_dataset, y=None, epochs=num_epochs)
 
         # Save history. Both redundant as this is saved through the callback. But am coding quickly at the moment and prefer to have redundancies. 
@@ -136,12 +136,11 @@ def train_MNIST_model_from_pretrained_init(pretrained_weights_fp: Path, train_da
 if __name__ == "__main__": 
 
     # Set root directory for logging and ensure they exist
-    logging_dir=Path('')
-    randominit_logging_dir = logging_dir.joinpath('')
+    randominit_logging_dir = EXPERIMENT_DIR / 'random_init'
     os.makedirs(randominit_logging_dir, exist_ok=True)
-    pretrained_models_logging_dir = logging_dir.joinpath('')
+    pretrained_models_logging_dir = EXPERIMENT_DIR / 'pretraining_on_blur'
     os.makedirs(pretrained_models_logging_dir, exist_ok=True)
-    noisyinit_logging_dir = logging_dir.joinpath('')
+    noisyinit_logging_dir = EXPERIMENT_DIR / "blur_pretrained_init"
     os.makedirs(noisyinit_logging_dir, exist_ok=True)
 
     # Load relevant datasets
@@ -151,7 +150,7 @@ if __name__ == "__main__":
     test_dataset = MNIST_dataset(is_train=False, transforms=achille_preprocess, data_dir=data_dir)
 
     # Sanity check! Save examples of the train, blurry, and test
-    save_dataset_examples(train_dataset, blurry_train_dataset, test_dataset, logging_dir)
+    save_dataset_examples(train_dataset, blurry_train_dataset, test_dataset, EXPERIMENT_DIR)
 
     # Train models! Random init
     random_init_model_histories = train_MNIST_models_from_random_init(

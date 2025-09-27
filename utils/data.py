@@ -1,4 +1,4 @@
-from torchvision import datasets, transforms
+from torchvision import datasets, transforms # type: ignore
 import matplotlib.pyplot as plt
 import torch.nn.functional as F
 from pathlib import Path

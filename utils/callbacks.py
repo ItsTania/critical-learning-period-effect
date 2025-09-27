@@ -1,7 +1,7 @@
 import os
 from datetime import datetime
 import pickle
-from skorch.callbacks import Checkpoint, EpochScoring, Callback
+from skorch.callbacks import Checkpoint, EpochScoring, Callback # type: ignore
 
 
 ## Save model weights for further investigation
@@ -18,7 +18,8 @@ def save_model_trigger(net, factor=5):
         return True
     return False
 
-checkpoint_at_intervals = Checkpoint(f_params='model_epoch_{epoch:03d}.pt', monitor=save_model_trigger)
+def get_model_checkpoints(dirname):
+    return Checkpoint(dirname=str(dirname), f_params='model_epoch_{last_epoch[epoch]}.pt', monitor=save_model_trigger)
 
 ## Log model performance on accuracy at every epoch
 valid_acc_epoch_logger = EpochScoring(
