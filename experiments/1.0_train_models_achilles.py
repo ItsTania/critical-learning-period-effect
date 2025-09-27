@@ -97,9 +97,9 @@ def pretrain_MNIST_models(train_dataset, test_dataset, logging_dir: Path, num_ep
         df.to_csv(logging_dir_run / "net_history.csv")
         list_of_model_histories.append(logging_dir_run / "net_history.csv")
         
-        model_path = logging_dir_run / "model.safetensors"
+        model_path = logging_dir_run / "pretrain_model.pkl"
         print(f"Saving model parameters to {str(model_path)}") # Both redundant as this is saved through the callback. But am coding quickly at the moment and prefer to have redundancies and this format makes it easy to load.
-        net.save_params(f_params=str(model_path), use_safetensors=True)
+        net.save_params(f_params=str(model_path))
         list_of_model_files.append(model_path)
 
     return list_of_model_histories, list_of_model_files
