@@ -51,8 +51,8 @@ class Achille_MNIST_FC(nn.Module):
         return x
 
 class Achille_MNIST_FC_No_BatchNorm(nn.Module):
-    def __init__(self, input_size=32):
-        super(Achille_MNIST_FC, self).__init__()
+    def __init__(self, input_size=32, activation=F.relu):
+        super(Achille_MNIST_FC_No_BatchNorm, self).__init__()
         self.flatten = nn.Flatten()
         
         self.hidden1 = nn.Linear(input_size*input_size, 2500)
@@ -61,13 +61,15 @@ class Achille_MNIST_FC_No_BatchNorm(nn.Module):
         self.hidden4 = nn.Linear(1500, 1000)
         self.hidden5 = nn.Linear(1000, 500)
         self.output = nn.Linear(500, 10)  
+        
+        self.activation = activation
     
     def forward(self, x):
         x = self.flatten(x)
-        x = F.relu(self.hidden1(x))
-        x = F.relu(self.hidden2(x))
-        x = F.relu(self.hidden3(x))
-        x = F.relu(self.hidden4(x))
-        x = F.relu(self.hidden5(x))
+        x = self.activation(self.hidden1(x))
+        x = self.activation(self.hidden2(x))
+        x = self.activation(self.hidden3(x))
+        x = self.activation(self.hidden4(x))
+        x = self.activation(self.hidden5(x))
         x = self.output(x)
         return x
