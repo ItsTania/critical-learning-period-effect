@@ -65,14 +65,14 @@ class SaveModelInformationCallback(Callback):
     def __init__(self, save_dir='model_checkpoint'):
         self.save_dir = save_dir
 
-    def on_train_start(self, net, **kwargs):
+    def on_train_begin(self, net, **kwargs):
         # Initialise logging dir
         logging_dir = os.path.join(self.save_dir, "initial")
         os.makedirs(logging_dir, exist_ok=True)
 
         # Save parameters using skorch
         net.save_params(
-            f_params=os.path.join(self.save_dir,'initial_model.pkl'), 
+            f_params=os.path.join(logging_dir,'initial_model.pkl'), 
             )
         print(f"Saved history to {logging_dir}")
     
@@ -83,9 +83,9 @@ class SaveModelInformationCallback(Callback):
 
         # Save parameters using skorch
         net.save_params(
-            f_params=os.path.join(self.save_dir,'final_model.pkl'), 
-            f_optimizer=os.path.join(self.save_dir,'final_opt.pkl'), 
-            f_history=os.path.join(self.save_dir,'training_history.json')
+            f_params=os.path.join(logging_dir,'final_model.pkl'), 
+            f_optimizer=os.path.join(logging_dir,'final_opt.pkl'), 
+            f_history=os.path.join(logging_dir,'training_history.json')
             )
         
         # Double safe

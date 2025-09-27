@@ -1,5 +1,6 @@
 import os
 import sys
+import gc
 from pathlib import Path
 
 import torch
@@ -18,7 +19,7 @@ from utils.callbacks import SaveModelInformationCallback, valid_acc_epoch_logger
 from utils.data import MNIST_dataset, achille_preprocess, achille_transform_train, achille_blurry_transform_train, save_dataset_examples  # noqa: E402
 
 # Experiment params - general
-NUMBER_RUNS = 5
+NUMBER_RUNS = 1#5
 EXPERIMENT_DIR = ROOT / Path("artifacts/experiment_results/example")
 
 if torch.mps.is_available():
@@ -30,10 +31,10 @@ else:
 
 
 # Experiment params - taken from Achilles
-PRETRAINING_EPOCHS= 480 # In the paper they test [40 * x for x in range(12)]
-CLEAN_EPOCHS=180
+PRETRAINING_EPOCHS= 1#480 # In the paper they test [40 * x for x in range(12)]
+CLEAN_EPOCHS=1 #180
 LEARNING_RATE=0.005
-BATCH=128
+BATCH=512#128
 OPTIMIZER=torch.optim.Adam
 CRITERION=torch.nn.CrossEntropyLoss
 
@@ -52,8 +53,8 @@ def train_MNIST_models_from_random_init(train_dataset, test_dataset, logging_dir
             device=DEVICE,
             callbacks=[
                 valid_acc_epoch_logger,
-                SaveModelInformationCallback(save_dir=logging_dir_run), 
-                get_model_checkpoints(logging_dir_run/ "checkpoints"),
+                SaveModelInformationCallback(save_dir=str(logging_dir_run)), 
+                get_model_checkpoints(str(logging_dir_run/ "checkpoints")),
                 ProgressBar()],
             train_split=predefined_split(test_dataset),
             classes=dataset_classes
@@ -63,7 +64,7 @@ def train_MNIST_models_from_random_init(train_dataset, test_dataset, logging_dir
         # Save history. Both redundant as this is saved through the callback. But am coding quickly at the moment and prefer to have redundancies. 
         df = pd.DataFrame(net.history)
         df['run'] = run
-        df.to_csv(logging_dir_run / "net_history.csv")
+        df.to_csv(str(logging_dir_run / "net_history.csv"))
         list_of_model_histories.append(logging_dir_run / "net_history.csv")
 
     return list_of_model_histories
@@ -83,8 +84,8 @@ def pretrain_MNIST_models(train_dataset, test_dataset, logging_dir: Path, num_ep
             device=DEVICE,
             callbacks=[
                 valid_acc_epoch_logger,
-                SaveModelInformationCallback(save_dir=logging_dir_run), 
-                get_model_checkpoints(logging_dir_run/ "checkpoints"),
+                SaveModelInformationCallback(save_dir=str(logging_dir_run)), 
+                get_model_checkpoints(str(logging_dir_run/ "checkpoints")),
                 ProgressBar()],
             train_split=predefined_split(test_dataset),
             classes=dataset_classes
@@ -97,9 +98,10 @@ def pretrain_MNIST_models(train_dataset, test_dataset, logging_dir: Path, num_ep
         df.to_csv(logging_dir_run / "net_history.csv")
         list_of_model_histories.append(logging_dir_run / "net_history.csv")
         
-        model_path = logging_dir_run / "pretrain_model.pkl"
-        print(f"Saving model parameters to {str(model_path)}") # Both redundant as this is saved through the callback. But am coding quickly at the moment and prefer to have redundancies and this format makes it easy to load.
-        net.save_params(f_params=str(model_path))
+        # Save model
+        model_path = logging_dir_run / 'pretrained_model_weights.pt'
+        print(f"Saving model parameters to {str(model_path)}") # Both redundant as this is saved through the callback. But am coding quickly at the moment and prefer to have redundancies. 
+        torch.save(net.module_.state_dict(), str(model_path))
         list_of_model_files.append(model_path)
 
     return list_of_model_histories, list_of_model_files
@@ -116,26 +118,29 @@ def train_MNIST_model_from_pretrained_init(pretrained_weights_fp: Path, train_da
             device=DEVICE,
             callbacks=[
                 valid_acc_epoch_logger,
-                SaveModelInformationCallback(save_dir=logging_dir_run), 
-                get_model_checkpoints(logging_dir_run/ "checkpoints"),
+                SaveModelInformationCallback(save_dir=str(logging_dir_run)), 
+                get_model_checkpoints(str(logging_dir_run/ "checkpoints")),
                 ProgressBar()],
             train_split=predefined_split(test_dataset),
             classes=dataset_classes
             )
         net.initialize()
-        net.load_params(f_params=str(pretrained_weights_fp), use_safetensors=True)
+        print(f"Loading from {str(pretrained_weights_fp)}")
+        state_dict = torch.load(str(pretrained_weights_fp), map_location=net.device)
+        net.module_.load_state_dict(state_dict)
         net.fit(train_dataset, y=None, epochs=num_epochs)
 
         # Save history. Both redundant as this is saved through the callback. But am coding quickly at the moment and prefer to have redundancies. 
         df = pd.DataFrame(net.history)
         df['run'] = run
-        df.to_csv(logging_dir_run / "net_history.csv")
+        df.to_csv(str(logging_dir_run / "net_history.csv"))
 
     return logging_dir_run / "net_history.csv"
 
 if __name__ == "__main__": 
 
     # Set root directory for logging and ensure they exist
+    print(f"Starting experiment run {EXPERIMENT_DIR}!")
     randominit_logging_dir = EXPERIMENT_DIR / 'random_init'
     os.makedirs(randominit_logging_dir, exist_ok=True)
     pretrained_models_logging_dir = EXPERIMENT_DIR / 'pretraining_on_blur'
@@ -144,6 +149,7 @@ if __name__ == "__main__":
     os.makedirs(noisyinit_logging_dir, exist_ok=True)
 
     # Load relevant datasets
+    print("Loading data...")
     data_dir = ROOT / "artifacts" / "data"
     train_dataset = MNIST_dataset(is_train=True, transforms=achille_transform_train, data_dir=data_dir)
     blurry_train_dataset = MNIST_dataset(is_train=True, transforms=achille_blurry_transform_train, data_dir=data_dir)
@@ -156,17 +162,21 @@ if __name__ == "__main__":
     random_init_model_histories = train_MNIST_models_from_random_init(
         train_dataset=train_dataset, 
         test_dataset=test_dataset, 
-        logging_dir=randominit_logging_dir,
+        logging_dir=randominit_logging_dir
         )
+    
+    gc.collect()
     print(f"Completed training {NUMBER_RUNS} runs on baseline models starting from random initialisation. Net histories can be found:")
     print(random_init_model_histories)
 
     # Train models! Pretrain
-    pretrain_model_params, pretrain_model_histories = pretrain_MNIST_models(
+    pretrain_model_histories, pretrain_model_params = pretrain_MNIST_models(
         train_dataset=blurry_train_dataset, ## Blurry dataset here!
         test_dataset=test_dataset, 
         logging_dir=pretrained_models_logging_dir
         )
+    
+    gc.collect()
     print(f"Completed pretraining {NUMBER_RUNS} models on noisy data for {PRETRAINING_EPOCHS} epochs. Net histories can be found:")
     print(pretrain_model_histories)
 
