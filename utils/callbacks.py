@@ -19,7 +19,8 @@ def save_model_trigger(net, factor=5):
     return False
 
 def get_model_checkpoints(dirname):
-    return Checkpoint(dirname=str(dirname), f_params='model_epoch_{last_epoch[epoch]}.pt', monitor=save_model_trigger)
+    file_format = os.path.join(dirname, 'model_epoch_{last_epoch[epoch]}.pt')
+    return Checkpoint(dirname=str(dirname), f_params=file_format, monitor=save_model_trigger)
 
 ## Log model performance on accuracy at every epoch
 valid_acc_epoch_logger = EpochScoring(
