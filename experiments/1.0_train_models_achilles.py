@@ -58,7 +58,7 @@ def train_MNIST_models_from_random_init(train_dataset, test_dataset, logging_dir
             train_split=predefined_split(test_dataset),
             classes=dataset_classes
             )
-        net.fit(train_dataset, y=None, num_epochs=num_epochs)
+        net.fit(train_dataset, y=None, epochs=num_epochs)
 
         # Save history. Both redundant as this is saved through the callback. But am coding quickly at the moment and prefer to have redundancies. 
         df = pd.DataFrame(net.history)
@@ -89,7 +89,7 @@ def pretrain_MNIST_models(train_dataset, test_dataset, logging_dir: Path, num_ep
             train_split=predefined_split(test_dataset),
             classes=dataset_classes
             )
-        net.fit(train_dataset, y=None, num_epochs=num_epochs)
+        net.fit(train_dataset, y=None, epochs=num_epochs)
 
         # Save history.
         df = pd.DataFrame(net.history)
@@ -124,7 +124,7 @@ def train_MNIST_model_from_pretrained_init(pretrained_weights_fp: Path, train_da
             )
         net.initialize()
         net.load_params(f_params=str(pretrained_weights_fp))
-        net.fit(train_dataset, y=None, num_epochs=num_epochs)
+        net.fit(train_dataset, y=None, epochs=num_epochs)
 
         # Save history. Both redundant as this is saved through the callback. But am coding quickly at the moment and prefer to have redundancies. 
         df = pd.DataFrame(net.history)
@@ -157,7 +157,7 @@ if __name__ == "__main__":
     random_init_model_histories = train_MNIST_models_from_random_init(
         train_dataset=train_dataset, 
         test_dataset=test_dataset, 
-        logging_dir=randominit_logging_dir
+        logging_dir=randominit_logging_dir,
         )
     print(f"Completed training {NUMBER_RUNS} runs on baseline models starting from random initialisation. Net histories can be found:")
     print(random_init_model_histories)
