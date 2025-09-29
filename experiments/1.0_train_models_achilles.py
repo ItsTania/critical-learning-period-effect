@@ -120,6 +120,7 @@ def train_MNIST_model_from_pretrained_init(run, pretrained_weights_fp: Path, tra
         optimizer=OPTIMIZER,
         criterion=CRITERION,
         device=DEVICE,
+        warm_start=True,
         callbacks=[
             valid_acc_epoch_logger,
             SaveModelInformationCallback(save_dir=str(logging_dir_run)), 
