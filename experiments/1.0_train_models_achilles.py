@@ -112,34 +112,33 @@ def pretrain_MNIST_models(train_dataset, test_dataset, logging_dir: Path, num_ep
     return list_of_model_histories, list_of_model_files
 
 # Load blurry data parameters and further train
-def train_MNIST_model_from_pretrained_init(pretrained_weights_fp: Path, train_dataset, test_dataset, logging_dir: Path, num_epochs:int=CLEAN_EPOCHS, dataset_classes=list(range(10))):
-    for run in trange(NUMBER_RUNS, desc="Pretrained Init Runs"):
-        logging_dir_run = logging_dir / f"run_{run}"
-        net = NeuralNetClassifier(
-            module=MODEL,
-            lr=LEARNING_RATE,
-            optimizer=OPTIMIZER,
-            criterion=CRITERION,
-            device=DEVICE,
-            callbacks=[
-                valid_acc_epoch_logger,
-                SaveModelInformationCallback(save_dir=str(logging_dir_run)), 
-                get_model_checkpoints(str(logging_dir_run/ "checkpoints")),
-                ProgressBar()],
-            train_split=predefined_split(test_dataset),
-            classes=dataset_classes,
-            module__activation=ACTIVATION,
-            )
-        net.initialize()
-        print(f"Loading from {str(pretrained_weights_fp)}")
-        state_dict = torch.load(str(pretrained_weights_fp), map_location=net.device)
-        net.module_.load_state_dict(state_dict)
-        net.fit(train_dataset, y=None, epochs=num_epochs)
+def train_MNIST_model_from_pretrained_init(run, pretrained_weights_fp: Path, train_dataset, test_dataset, logging_dir: Path, num_epochs:int=CLEAN_EPOCHS, dataset_classes=list(range(10))):
+    logging_dir_run = logging_dir / f"run_{run}"
+    net = NeuralNetClassifier(
+        module=MODEL,
+        lr=LEARNING_RATE,
+        optimizer=OPTIMIZER,
+        criterion=CRITERION,
+        device=DEVICE,
+        callbacks=[
+            valid_acc_epoch_logger,
+            SaveModelInformationCallback(save_dir=str(logging_dir_run)), 
+            get_model_checkpoints(str(logging_dir_run/ "checkpoints")),
+            ProgressBar()],
+        train_split=predefined_split(test_dataset),
+        classes=dataset_classes,
+        module__activation=ACTIVATION,
+        )
+    net.initialize()
+    print(f"Loading from {str(pretrained_weights_fp)}")
+    state_dict = torch.load(str(pretrained_weights_fp), map_location=net.device)
+    net.module_.load_state_dict(state_dict)
+    net.fit(train_dataset, y=None, epochs=num_epochs)
 
-        # Save history. Both redundant as this is saved through the callback. But am coding quickly at the moment and prefer to have redundancies. 
-        df = pd.DataFrame(net.history)
-        df['run'] = run
-        df.to_csv(str(logging_dir_run / "net_history.csv"))
+    # Save history. Both redundant as this is saved through the callback. But am coding quickly at the moment and prefer to have redundancies. 
+    df = pd.DataFrame(net.history)
+    df['run'] = run
+    df.to_csv(str(logging_dir_run / "net_history.csv"))
 
     return logging_dir_run / "net_history.csv"
 
@@ -191,8 +190,9 @@ if __name__ == "__main__":
 
     # Train models! Pretrain init
     model_history_noisy_init = []
-    for model_params in pretrain_model_params:
+    for run, model_params in enumerate(pretrain_model_params):
         net_history = train_MNIST_model_from_pretrained_init(
+            run=run,
             train_dataset=train_dataset, 
             test_dataset=test_dataset,
             pretrained_weights_fp=model_params, 
