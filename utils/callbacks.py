@@ -71,6 +71,17 @@ class SaveModelInformationCallback(Callback):
         logging_dir = os.path.join(self.save_dir, "initial")
         os.makedirs(logging_dir, exist_ok=True)
 
+        # Run validation
+        val_ds = getattr(net, 'heldout_test_dataset', None)
+        if val_ds is not None:
+            val_score = net.score(val_ds, y=val_ds.targets)
+            with open(os.path.join(logging_dir,'initial_score.txt'), 'a') as f:
+                timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                f.write("Initial Evaluation:\n")
+                f.write(f"Validation Score: {val_score}\n")
+                f.write(f"Start Time: {str(timestamp)}\n")
+                f.write("="*30 + "\n")
+
         # Save parameters using skorch
         net.save_params(
             f_params=os.path.join(logging_dir,'initial_model.pkl'), 

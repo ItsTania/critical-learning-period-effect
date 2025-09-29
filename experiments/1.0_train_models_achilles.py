@@ -62,7 +62,10 @@ def train_MNIST_models_from_random_init(train_dataset, test_dataset, logging_dir
             train_split=predefined_split(test_dataset),
             classes=dataset_classes,
             module__activation=ACTIVATION,
+            iterator_train__num_workers=4,
+            iterator_valid__num_workers=4,
             )
+        net.heldout_test_dataset=test_dataset
         net.fit(train_dataset, y=None, epochs=num_epochs)
 
         # Save history. Both redundant as this is saved through the callback. But am coding quickly at the moment and prefer to have redundancies. 
@@ -94,7 +97,10 @@ def pretrain_MNIST_models(train_dataset, test_dataset, logging_dir: Path, num_ep
             train_split=predefined_split(test_dataset),
             classes=dataset_classes,
             module__activation=ACTIVATION,
+            iterator_train__num_workers=4,
+            iterator_valid__num_workers=4,
             )
+        net.heldout_test_dataset=test_dataset
         net.fit(train_dataset, y=None, epochs=num_epochs)
 
         # Save history.
@@ -120,7 +126,7 @@ def train_MNIST_model_from_pretrained_init(run, pretrained_weights_fp: Path, tra
         optimizer=OPTIMIZER,
         criterion=CRITERION,
         device=DEVICE,
-        warm_start=True,
+        warm_start=True, 
         callbacks=[
             valid_acc_epoch_logger,
             SaveModelInformationCallback(save_dir=str(logging_dir_run)), 
@@ -129,7 +135,10 @@ def train_MNIST_model_from_pretrained_init(run, pretrained_weights_fp: Path, tra
         train_split=predefined_split(test_dataset),
         classes=dataset_classes,
         module__activation=ACTIVATION,
+        iterator_train__num_workers=4,
+        iterator_valid__num_workers=4,
         )
+    net.heldout_test_dataset=test_dataset
     net.initialize()
     print(f"Loading from {str(pretrained_weights_fp)}")
     state_dict = torch.load(str(pretrained_weights_fp), map_location=net.device)
