@@ -1,0 +1,55 @@
+from torch import nn
+import torch.nn.functional as F
+
+class BasicClassifierModule(nn.Module):
+    def __init__(
+            self,
+            input_dim=784,
+            hidden_dim=100,
+            output_dim=10,
+            number_of_layers=3,
+            activation = F.relu,
+    ):
+        super(BasicClassifierModule, self).__init__()
+
+        layers = [nn.Linear(input_dim, hidden_dim)]
+        for _ in range(number_of_layers - 1):
+            layers.append(nn.Linear(hidden_dim, hidden_dim))
+        self.hidden_layers = nn.ModuleList(layers)
+        self.output = nn.Linear(hidden_dim, output_dim)
+
+        self.activation = activation
+
+    def forward(self, X, **kwargs):
+        X = X.view(X.size(0), -1)
+        for layer in self.hidden_layers:
+            X = self.activation(layer(X))
+        X = self.output(X)
+        return X
+    
+class ChokepointClassifierModule(nn.Module):
+    def __init__(
+            self,
+            input_dim=784,
+            output_dim=10,
+            number_of_layers=3,
+            activation = F.relu,
+            scale=4
+    ):
+        super(ChokepointClassifierModule, self).__init__()
+
+        current_dim_size = int(input_dim/scale)
+        layers = [nn.Linear(input_dim, current_dim_size)]
+        for _ in range(number_of_layers - 1):
+            layers.append(nn.Linear(current_dim_size, int(current_dim_size/scale)))
+            current_dim_size = int(current_dim_size/scale)
+        self.hidden_layers = nn.ModuleList(layers)
+        self.output = nn.Linear(current_dim_size, output_dim)
+
+        self.activation = activation
+
+    def forward(self, X, **kwargs):
+        for layer in self.hidden_layers:
+            X = self.activation(layer(X))
+        X = self.output(X)
+        return X

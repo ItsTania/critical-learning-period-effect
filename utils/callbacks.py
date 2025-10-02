@@ -1,17 +1,17 @@
 import os
 from datetime import datetime
 import pickle
-from skorch.callbacks import Checkpoint, EpochScoring, Callback # type: ignore
+from skorch.callbacks import Checkpoint, EpochScoring, Callback
 import torch
 import numpy as np
 
-
 ## Save model weights for further investigation
-def save_model_trigger(net, factor=5):
+def save_model_trigger(net):
     """
     Returns True if the current epoch number is a power of 2
     or divisible by another number (currently 5).
     """
+    factor=5
     n = net.history[-1, 'epoch']  + 1 # current epoch, 0-based
 
     if (n & (n - 1)) == 0:
@@ -22,7 +22,7 @@ def save_model_trigger(net, factor=5):
 
 def get_model_checkpoints(dirname):
     file_format = os.path.join(dirname, 'model_epoch_{last_epoch[epoch]}.pt')
-    return Checkpoint(f_params=file_format, monitor=save_model_trigger)
+    return Checkpoint(dirname=str(dirname), f_params=file_format, monitor=save_model_trigger)
 
 ## Log model performance on accuracy at every epoch
 valid_acc_epoch_logger = EpochScoring(
@@ -72,14 +72,14 @@ class SaveModelInformationCallback(Callback):
         # Initialise logging dir
         logging_dir = os.path.join(self.save_dir, "initial")
         os.makedirs(logging_dir, exist_ok=True)
-
+        
         # Run validation
         val_ds = getattr(net, 'heldout_test_dataset', None)
         if val_ds is not None:
             val_score = net.score(val_ds, y=val_ds.targets)
             with open(os.path.join(logging_dir,'initial_score.txt'), 'a') as f:
                 timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                f.write("Initial Evaluation:\n")
+                f.write(f"Initial Evaluation:\n")
                 f.write(f"Validation Score: {val_score}\n")
                 f.write(f"Start Time: {str(timestamp)}\n")
                 f.write("="*30 + "\n")
@@ -107,7 +107,8 @@ class SaveModelInformationCallback(Callback):
             pickle.dump(net.history, f)
             
         print(f"Saved history to {logging_dir}")
-
+        
+        
 
 class SkorchTestPerformanceLogger(Callback):
     """A callback to log test performance metrics and save logits & model periodically."""
@@ -119,7 +120,7 @@ class SkorchTestPerformanceLogger(Callback):
                  linear_every_n_batches=None,
                  log_base_scheduler=None,
                  model_dir="model_checkpoints",
-                 logits_dir="logs"):
+                 logits_dir="logits"):
         self.test_loader = test_loader
         self.metric_log_name = metric_log_name
 
@@ -151,39 +152,29 @@ class SkorchTestPerformanceLogger(Callback):
 
     def on_train_begin(self, net, X, y):
         print(f"[{self.metric_log_name}] Logging to: {self.logits_dir}")
-        print("Running initial test at batch 0...")
-        self._run_test_and_log(net, batch_idx=0)
+        print("Running initial test at epoch 0...")
+        self._run_test_and_log(net, epoch=0)
 
-    def on_batch_end(self, net, X, y, training, **kwargs):
-        if not training:
-            return  # skorch triggers on_batch_end at the end of training and validation. We don't want to double up. 
-        batch_idx = net.history[-1]['batches'][-1]['batch']  # skorch records current batch
-        if self.should_run_logging(batch_idx):
-            self._run_test_and_log(net, batch_idx)
+    def on_epoch_end(self, net, **kwargs): 
+        epoch = net.history[-1, 'epoch']
+        if self.should_run_logging(epoch):
+            self._run_test_and_log(net, epoch)
 
-    def _run_test_and_log(self, net, batch_idx):
+    def _run_test_and_log(self, net, epoch):
         net.module_.eval()
-        all_logits, all_labels = [], []
+        all_logits = []
 
         with torch.no_grad():
             for xb, yb in self.test_loader:
                 xb, yb = xb.to(net.device), yb.to(net.device)
                 logits = net.module_(xb)
                 all_logits.append(logits.cpu())
-                all_labels.append(yb.cpu())
 
         logits = torch.cat(all_logits)
-        labels = torch.cat(all_labels)
-        preds = torch.argmax(logits, dim=1)
-
-        acc = (preds == labels).float().mean().item()
-
-        # Log to history
-        net.history.record(f'{self.metric_log_name}_acc', acc)
 
         # Save logits and model checkpoint
-        logits_file = os.path.join(self.logits_dir, f"batch_{batch_idx}.pt")
-        torch.save({"logits": logits, "labels": labels}, logits_file)
+        logits_file = os.path.join(self.logits_dir, f"epoch_{epoch}.pt")
+        torch.save(logits, logits_file)
 
-        model_file = os.path.join(self.model_dir, f"model_batch_{batch_idx}.pt")
+        model_file = os.path.join(self.model_dir, f"model_epoch_{epoch}.pt")
         net.save_params(f_params=model_file)
