@@ -49,6 +49,34 @@ class ChokepointClassifierModule(nn.Module):
         self.activation = activation
 
     def forward(self, X, **kwargs):
+        X = X.view(X.size(0), -1)
+        for layer in self.hidden_layers:
+            X = self.activation(layer(X))
+        X = self.output(X)
+        return X
+    
+class BottleneckClassifierModule(nn.Module):
+    def __init__(
+            self,
+            input_dim=784,
+            output_dim=10,
+            bottleneck=3,
+            activation = F.relu,
+            scale=4
+    ):
+        super(BottleneckClassifierModule, self).__init__()
+
+        current_dim = int(input_dim/scale)
+        layers = [nn.Linear(input_dim, current_dim)]
+        layers.append(nn.Linear(current_dim, int(current_dim/scale)))
+        layers.append(nn.Linear(int(current_dim/scale), bottleneck))
+        self.hidden_layers = nn.ModuleList(layers)
+        self.output = nn.Linear(bottleneck, output_dim)
+
+        self.activation = activation
+
+    def forward(self, X, **kwargs):
+        X = X.view(X.size(0), -1)
         for layer in self.hidden_layers:
             X = self.activation(layer(X))
         X = self.output(X)

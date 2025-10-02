@@ -17,7 +17,7 @@ from skorch.callbacks import ProgressBar # type: ignore
 ROOT=Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from utils.models.mlp import BasicClassifierModule, ChokepointClassifierModule # noqa: E402
+from utils.models.mlp import BasicClassifierModule, BottleneckClassifierModule # noqa: E402
 from utils.models.achille import get_activation # noqa: E402
 from utils.callbacks import SaveModelInformationCallback, valid_acc_epoch_logger, SkorchTestPerformanceLogger  # noqa: E402
 from utils.data import MNIST_dataset, save_dataset_examples  # noqa: E402
@@ -42,7 +42,7 @@ else:
 
 
 # Experiment params - taken from Achilles
-MODEL=BasicClassifierModule
+MODEL=BottleneckClassifierModule
 ACTIVATION=get_activation('relu')
 PRETRAINING_EPOCHS= 1#800 # In the paper they test [40 * x for x in range(12)]
 CLEAN_EPOCHS=1 #50
@@ -204,7 +204,7 @@ if __name__ == "__main__":
     print("Loading data...")
     data_dir = ROOT / "artifacts" / "data"
 
-    MNIST_train = torchvision.datasets.MNIST(data_dir, train=True)
+    MNIST_train = torchvision.datasets.MNIST(data_dir, train=True, download=True)
     source_train_dataset = ColorMNIST(MNIST_train, theta=THETA_2)
     target_train_dataset = ColorMNIST(MNIST_train, theta=THETA_1)
 
@@ -212,7 +212,7 @@ if __name__ == "__main__":
     input_dim = x0.numel()
 
     # Colour test
-    MNIST_test = torchvision.datasets.MNIST(data_dir, train=False)
+    MNIST_test = torchvision.datasets.MNIST(data_dir, train=False, download=True)
     tmp_test_dataset = ColorMNIST(MNIST_test, theta=THETA_1)
     X_list, y_list = [], []
     to_tensor = torchvision.transforms.ToTensor()
