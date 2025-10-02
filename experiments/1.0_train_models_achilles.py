@@ -4,6 +4,7 @@ import gc
 from pathlib import Path
 
 import torch
+from torch.utils.data import DataLoader
 from tqdm import trange # type: ignore
 import pandas as pd # type: ignore
 
@@ -15,13 +16,14 @@ ROOT=Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from utils.models.achille import Achille_MNIST_FC, Achille_MNIST_FC_No_BatchNorm, get_activation # noqa: E402
-from utils.callbacks import SaveModelInformationCallback, valid_acc_epoch_logger, get_model_checkpoints  # noqa: E402
+from utils.callbacks import SaveModelInformationCallback, valid_acc_epoch_logger, SkorchTestPerformanceLogger  # noqa: E402
 from utils.data import MNIST_dataset, achille_preprocess, achille_transform_train, achille_blurry_transform_train, save_dataset_examples  # noqa: E402
 
 # Experiment params - general
-NUMBER_RUNS = 1 #5
-EXPERIMENT_DIR = ROOT / Path("artifacts/experiment_results/example")
-SKIP_BASELINE=True
+NUMBER_RUNS = 3
+EXPERIMENT_DIR = ROOT / Path("artifacts/experiment_results/1Oct-3Runs")
+SKIP_BASELINE=False
+
 
 if torch.mps.is_available():
     DEVICE = 'mps'
@@ -37,17 +39,25 @@ ACTIVATION=get_activation('relu')
 PRETRAINING_EPOCHS= 1#480 # In the paper they test [40 * x for x in range(12)]
 CLEAN_EPOCHS=1 #180
 LEARNING_RATE=0.005
-BATCH=512#128
+BATCH=128
 OPTIMIZER=torch.optim.Adam
 CRITERION=torch.nn.CrossEntropyLoss
 
 
 
 # Train baseline models
-def train_MNIST_models_from_random_init(train_dataset, test_dataset, logging_dir: Path, num_epochs:int=CLEAN_EPOCHS, dataset_classes=list(range(10))):
+def train_MNIST_models_from_random_init(train_dataset, test_dataset, test_loader, logging_dir: Path, num_epochs:int=CLEAN_EPOCHS, dataset_classes=list(range(10))):
     list_of_model_histories: list[Path] = []
     for run in trange(NUMBER_RUNS, desc="Random Init Runs"):
         logging_dir_run = logging_dir / f"run_{run}"
+        
+        test_callback = SkorchTestPerformanceLogger(
+                test_loader=test_loader,
+                experiment_dir=logging_dir_run,
+                linear_every_n_batches=10,
+                log_base_scheduler=4
+            )
+        
         net = NeuralNetClassifier(
             module=MODEL,
             lr=LEARNING_RATE,
@@ -57,7 +67,7 @@ def train_MNIST_models_from_random_init(train_dataset, test_dataset, logging_dir
             callbacks=[
                 valid_acc_epoch_logger,
                 SaveModelInformationCallback(save_dir=str(logging_dir_run)), 
-                get_model_checkpoints(str(logging_dir_run/ "checkpoints")),
+                test_callback,
                 ProgressBar()],
             train_split=predefined_split(test_dataset),
             classes=dataset_classes,
@@ -77,14 +87,22 @@ def train_MNIST_models_from_random_init(train_dataset, test_dataset, logging_dir
     return list_of_model_histories
 
 # Pretrain models on the blurry data
-def pretrain_MNIST_models(train_dataset, test_dataset, logging_dir: Path, num_epochs:int=PRETRAINING_EPOCHS, dataset_classes=list(range(10))):
+def pretrain_MNIST_models(train_dataset, test_dataset, test_loader, logging_dir: Path, num_epochs:int=PRETRAINING_EPOCHS, dataset_classes=list(range(10))):
     list_of_model_files: list[Path] = []
     list_of_model_histories: list[Path] = []
 
     for run in trange(NUMBER_RUNS, desc="Degraded Pretraining Runs"):
         logging_dir_run = logging_dir / f"run_{run}"
+        
+        test_callback = SkorchTestPerformanceLogger(
+                test_loader=test_loader,
+                experiment_dir=logging_dir_run,
+                linear_every_n_batches=10,
+                log_base_scheduler=4
+            )
+            
         net = NeuralNetClassifier(
-            module=MODEL,
+            module=Achille_MNIST_FC,
             lr=LEARNING_RATE,
             optimizer=OPTIMIZER,
             criterion=CRITERION,
@@ -92,7 +110,7 @@ def pretrain_MNIST_models(train_dataset, test_dataset, logging_dir: Path, num_ep
             callbacks=[
                 valid_acc_epoch_logger,
                 SaveModelInformationCallback(save_dir=str(logging_dir_run)), 
-                get_model_checkpoints(str(logging_dir_run/ "checkpoints")),
+                test_callback,
                 ProgressBar()],
             train_split=predefined_split(test_dataset),
             classes=dataset_classes,
@@ -106,8 +124,8 @@ def pretrain_MNIST_models(train_dataset, test_dataset, logging_dir: Path, num_ep
         # Save history.
         df = pd.DataFrame(net.history)
         df['run'] = run
-        df.to_csv(logging_dir_run / "net_history.csv")
-        list_of_model_histories.append(logging_dir_run / "net_history.csv")
+        df.to_csv(str(logging_dir_run / "net_history.csv"))
+        list_of_model_histories.append(str(logging_dir_run / "net_history.csv"))
         
         # Save model
         model_path = logging_dir_run / 'pretrained_model_weights.pt'
@@ -118,19 +136,27 @@ def pretrain_MNIST_models(train_dataset, test_dataset, logging_dir: Path, num_ep
     return list_of_model_histories, list_of_model_files
 
 # Load blurry data parameters and further train
-def train_MNIST_model_from_pretrained_init(run, pretrained_weights_fp: Path, train_dataset, test_dataset, logging_dir: Path, num_epochs:int=CLEAN_EPOCHS, dataset_classes=list(range(10))):
+def train_MNIST_model_from_pretrained_init(run, pretrained_weights_fp: Path, train_dataset, test_dataset, test_loader, logging_dir: Path, num_epochs:int=CLEAN_EPOCHS, dataset_classes=list(range(10))):
     logging_dir_run = logging_dir / f"run_{run}"
+    
+    test_callback = SkorchTestPerformanceLogger(
+                test_loader=test_loader,
+                experiment_dir=logging_dir_run,
+                linear_every_n_batches=10,
+                log_base_scheduler=4
+            )
+        
     net = NeuralNetClassifier(
         module=MODEL,
         lr=LEARNING_RATE,
         optimizer=OPTIMIZER,
         criterion=CRITERION,
         device=DEVICE,
-        warm_start=True, 
+        warm_start=True,
         callbacks=[
             valid_acc_epoch_logger,
             SaveModelInformationCallback(save_dir=str(logging_dir_run)), 
-            get_model_checkpoints(str(logging_dir_run/ "checkpoints")),
+            test_callback,
             ProgressBar()],
         train_split=predefined_split(test_dataset),
         classes=dataset_classes,
@@ -169,6 +195,8 @@ if __name__ == "__main__":
     train_dataset = MNIST_dataset(is_train=True, transforms=achille_transform_train, data_dir=data_dir)
     blurry_train_dataset = MNIST_dataset(is_train=True, transforms=achille_blurry_transform_train, data_dir=data_dir)
     test_dataset = MNIST_dataset(is_train=False, transforms=achille_preprocess, data_dir=data_dir)
+    test_loader = DataLoader(test_dataset, batch_size=BATCH, shuffle=False, num_workers=4)
+
 
     # Sanity check! Save examples of the train, blurry, and test
     save_dataset_examples(train_dataset, blurry_train_dataset, test_dataset, EXPERIMENT_DIR)
@@ -180,24 +208,27 @@ if __name__ == "__main__":
         random_init_model_histories = train_MNIST_models_from_random_init(
             train_dataset=train_dataset, 
             test_dataset=test_dataset, 
-            logging_dir=randominit_logging_dir
+            logging_dir=randominit_logging_dir,
+            test_loader=test_loader
             )
 
         gc.collect()
         print(f"Completed training {NUMBER_RUNS} runs on baseline models starting from random initialisation. Net histories can be found:")
         print(random_init_model_histories)
-
+        
     # Train models! Pretrain
     pretrain_model_histories, pretrain_model_params = pretrain_MNIST_models(
         train_dataset=blurry_train_dataset, ## Blurry dataset here!
         test_dataset=test_dataset, 
-        logging_dir=pretrained_models_logging_dir
+        logging_dir=pretrained_models_logging_dir,
+        test_loader=test_loader
         )
-    
+
     gc.collect()
     print(f"Completed pretraining {NUMBER_RUNS} models on noisy data for {PRETRAINING_EPOCHS} epochs. Net histories can be found:")
     print(pretrain_model_histories)
-
+    
+    print("Training on pretrained initialisations")
     # Train models! Pretrain init
     model_history_noisy_init = []
     for run, model_params in enumerate(pretrain_model_params):
@@ -206,9 +237,10 @@ if __name__ == "__main__":
             train_dataset=train_dataset, 
             test_dataset=test_dataset,
             pretrained_weights_fp=model_params, 
-            logging_dir=noisyinit_logging_dir
+            logging_dir=noisyinit_logging_dir,
+            test_loader=test_loader
             )
         model_history_noisy_init.append(net_history)
     
     print(f"Completed training {NUMBER_RUNS} runs on baseline models starting from noisy-pretraining initialisation. Net histories can be found:")
-    print(random_init_model_histories)
+    print(model_history_noisy_init)
