@@ -4,7 +4,7 @@ import gc
 from pathlib import Path
 
 import torch
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import DataLoader
 import torchvision
 from tqdm import trange # type: ignore
 import pandas as pd # type: ignore
@@ -20,7 +20,6 @@ sys.path.insert(0, str(ROOT))
 from utils.models.mlp import BasicClassifierModule, BottleneckClassifierModule # noqa: E402
 from utils.models.achille import get_activation # noqa: E402
 from utils.callbacks import SaveModelInformationCallback, valid_acc_epoch_logger, SkorchTestPerformanceLogger  # noqa: E402
-from utils.data import MNIST_dataset, save_dataset_examples  # noqa: E402
 from utils.colour_mnist import ColorMNIST # noqa: E402
 
 # Experiment params - general
@@ -29,8 +28,8 @@ EXPERIMENT_DIR = ROOT / Path("artifacts/experiment_results/multi-channel-example
 SKIP_BASELINE=False
 DATALOADER_NUM_WORKERS=4
 
-THETA_1 = 0 # 0 is spurrious while 1 is random
-THETA_2 = 1
+SOURCE_THETA = 0 # 0 is spurrious while 1 is random
+TARGET_THETA = 1
 
 
 if torch.mps.is_available():
@@ -42,10 +41,10 @@ else:
 
 
 # Experiment params - taken from Achilles
-MODEL=BottleneckClassifierModule
+MODEL=BasicClassifierModule
 ACTIVATION=get_activation('relu')
-PRETRAINING_EPOCHS= 1#800 # In the paper they test [40 * x for x in range(12)]
-CLEAN_EPOCHS=1 #50
+PRETRAINING_EPOCHS= 500 # In the paper they test [40 * x for x in range(12)]
+CLEAN_EPOCHS=50
 LEARNING_RATE=0.005
 BATCH=128
 OPTIMIZER=torch.optim.Adam
@@ -205,15 +204,15 @@ if __name__ == "__main__":
     data_dir = ROOT / "artifacts" / "data"
 
     MNIST_train = torchvision.datasets.MNIST(data_dir, train=True, download=True)
-    source_train_dataset = ColorMNIST(MNIST_train, theta=THETA_2)
-    target_train_dataset = ColorMNIST(MNIST_train, theta=THETA_1)
+    source_train_dataset = ColorMNIST(MNIST_train, theta=SOURCE_THETA)
+    target_train_dataset = ColorMNIST(MNIST_train, theta=TARGET_THETA)
 
     x0, y0 = target_train_dataset[0]
     input_dim = x0.numel()
 
     # Colour test
     MNIST_test = torchvision.datasets.MNIST(data_dir, train=False, download=True)
-    tmp_test_dataset = ColorMNIST(MNIST_test, theta=THETA_1)
+    tmp_test_dataset = ColorMNIST(MNIST_test, theta=TARGET_THETA)
     X_list, y_list = [], []
     to_tensor = torchvision.transforms.ToTensor()
     for i in range(len(tmp_test_dataset)):
@@ -239,7 +238,7 @@ if __name__ == "__main__":
         print("Skipping Baseline!")
     else:
         random_init_model_histories = train_MNIST_models_from_random_init(
-            train_dataset=source_train_dataset, 
+            train_dataset=target_train_dataset, 
             test_dataset=test_dataset, 
             logging_dir=randominit_logging_dir,
             test_loader=test_loader,
@@ -252,7 +251,7 @@ if __name__ == "__main__":
         
     # Train models! Pretrain
     pretrain_model_histories, pretrain_model_params = pretrain_MNIST_models(
-        train_dataset=target_train_dataset, ## Blurry dataset here!
+        train_dataset=source_train_dataset, ## Blurry dataset here!
         test_dataset=test_dataset, 
         logging_dir=pretrained_models_logging_dir,
         test_loader=test_loader,
@@ -269,7 +268,7 @@ if __name__ == "__main__":
     for run, model_params in enumerate(pretrain_model_params):
         net_history = train_MNIST_model_from_pretrained_init(
             run=run,
-            train_dataset=source_train_dataset, 
+            train_dataset=target_train_dataset, 
             test_dataset=test_dataset,
             pretrained_weights_fp=model_params, 
             logging_dir=noisyinit_logging_dir,
