@@ -28,8 +28,9 @@ EXPERIMENT_DIR = ROOT / Path("artifacts/experiment_results/multi-channel-example
 SKIP_BASELINE=False
 DATALOADER_NUM_WORKERS=4
 
-SOURCE_THETA = 0 # 0 is spurrious while 1 is random
-TARGET_THETA = 1
+SOURCE_THETA = 1 # 0 is spurrious while 1 is random
+TARGET_THETA = 0
+EVAL_THETA = 0
 
 
 if torch.mps.is_available():
@@ -212,7 +213,7 @@ if __name__ == "__main__":
 
     # Colour test
     MNIST_test = torchvision.datasets.MNIST(data_dir, train=False, download=True)
-    tmp_test_dataset = ColorMNIST(MNIST_test, theta=TARGET_THETA)
+    tmp_test_dataset = ColorMNIST(MNIST_test, theta=EVAL_THETA)
     X_list, y_list = [], []
     to_tensor = torchvision.transforms.ToTensor()
     for i in range(len(tmp_test_dataset)):
