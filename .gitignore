@@ -6,6 +6,7 @@ __pycache__/
 # Experiment outcomes
 artifacts/data/*
 artifacts/experiment_results/*
+artifacts/final_results/*
 
 !artifacts/data/hard_indices.npy
 !artifacts/data/new_train_indices.npy

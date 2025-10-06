@@ -5,9 +5,12 @@ from pathlib import Path
 from typing import List, Tuple
 
 import torch
+from torch.utils.data import Subset
 import torchvision
+
 from tqdm import trange
 import pandas as pd
+import numpy as np
 
 import skorch 
 from skorch import NeuralNetClassifier 
@@ -70,7 +73,6 @@ def train_MNIST_models_from_random_init(
         
         test_callbacks = get_all_test_callbacks(test_datasets=test_datasets, logging_dir_run=logging_dir_run)
         callbacks = [
-            valid_acc_epoch_logger, 
             SaveModelInformationCallback(save_dir=str(logging_dir_run)),
             ProgressBar(),
             *test_callbacks,]
@@ -123,7 +125,6 @@ def pretrain_MNIST_models(
         
         test_callbacks = get_all_test_callbacks(test_datasets=test_datasets, logging_dir_run=logging_dir_run)
         callbacks = [
-            valid_acc_epoch_logger, 
             SaveModelInformationCallback(save_dir=str(logging_dir_run)),
             ProgressBar(),
             *test_callbacks,]
@@ -178,7 +179,6 @@ def train_MNIST_model_from_pretrained_init(
     # Define callbacks
     test_callbacks = get_all_test_callbacks(test_datasets=test_datasets, logging_dir_run=logging_dir_run)
     callbacks = [
-        valid_acc_epoch_logger, 
         SaveModelInformationCallback(save_dir=str(logging_dir_run)),
         ProgressBar(),
         *test_callbacks,]
@@ -213,6 +213,22 @@ def train_MNIST_model_from_pretrained_init(
 
     return logging_dir_run / "net_history.csv"
 
+def set_up_test_dataset(dataset) -> skorch.dataset.Dataset:
+    X_list, y_list = [], []
+    for i in range(len(dataset)):
+        x, y = dataset[i]
+        X_list.append(x)
+        y_list.append(y)
+
+    # Stack into tensors
+    X_tensor = torch.stack(X_list) # shape (N, H, W) or (N, C, H, W)
+    y_tensor = torch.tensor(y_list, dtype=torch.long)
+
+    # Step 3: Wrap in TensorDataset
+    test_dataset = skorch.dataset.Dataset(X_tensor, y_tensor)
+    test_dataset.targets = y_tensor
+    return test_dataset
+
 if __name__ == "__main__": 
 
     # Set root directory for logging and ensure they exist
@@ -228,31 +244,35 @@ if __name__ == "__main__":
     print("Loading data...")
     data_dir = ROOT / "artifacts" / "data"
 
-    MNIST_train = torchvision.datasets.MNIST(data_dir, train=True, download=True)
+    # Split into subset
+    Original_MNIST_train = torchvision.datasets.MNIST(data_dir, train=True, download=True)
+    hard_indices = np.load(os.path.join(data_dir, "hard_indices.npy"))
+    complementary_indices = np.load(os.path.join(data_dir, "complementary_indices.npy"))
+    MNIST_train = Subset(Original_MNIST_train, complementary_indices)
+    MNIST_hard_subset = Subset(MNIST_train, hard_indices)
+    assert len(MNIST_train) + len(MNIST_hard_subset) == len(Original_MNIST_train)
+
+    # Transform the source and train datasets
     source_train_dataset = ColorMNIST(MNIST_train, theta=SOURCE_THETA)
     target_train_dataset = ColorMNIST(MNIST_train, theta=TARGET_THETA)
 
+    # Get the input dimension
     x0, y0 = target_train_dataset[0]
     input_dim = x0.numel()
 
-    # Colour test
+    # Set up the test datasets
     MNIST_test = torchvision.datasets.MNIST(data_dir, train=False, download=True)
     tmp_test_dataset = ColorMNIST(MNIST_test, theta=EVAL_THETA)
-    X_list, y_list = [], []
-    to_tensor = torchvision.transforms.ToTensor()
-    for i in range(len(tmp_test_dataset)):
-        x, y = tmp_test_dataset[i]
-        X_list.append(x)
-        y_list.append(y)
+    test_dataset = set_up_test_dataset(tmp_test_dataset)
 
-    # Stack into tensors
-    X_tensor = torch.stack(X_list) # shape (N, H, W) or (N, C, H, W)
-    y_tensor = torch.tensor(y_list, dtype=torch.long)
+    tmp_hard_test_dataset = ColorMNIST(MNIST_hard_subset, theta=EVAL_THETA)
+    hard_test_dataset = set_up_test_dataset(tmp_hard_test_dataset)
 
-    # Step 3: Wrap in TensorDataset
-    test_dataset = skorch.dataset.Dataset(X_tensor, y_tensor)
-    test_dataset.targets = y_tensor
-    test_datasets=[("MNIST_Test", test_dataset)]
+
+    test_datasets=[
+        ("MNIST_test", test_dataset),
+        ("MNIST_hard", hard_test_dataset)
+        ]
 
 
     # Sanity check! Save examples of the train, blurry, and test
