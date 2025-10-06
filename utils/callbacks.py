@@ -113,6 +113,9 @@ class SkorchTestPerformanceLogger(Callback):
                  logits_dir="logits",
                  num_classes=10):
         
+        # Run once after initialisation
+        self.has_run = False
+
         # Metric
         self.test_loader = test_loader
         self.metric_log_name = metric_log_name
@@ -128,6 +131,10 @@ class SkorchTestPerformanceLogger(Callback):
 
     def on_train_begin(self, net, X, y):
         #print(f"[{self.metric_log_name}] Logging to: {self.logits_dir}")
+        if self.has_run:
+            return
+        
+        self.has_run = True
         acc, loss = self._run_test_and_log(net, epoch=0, save_to_disk=True) #skorch logs the first epoch as 1
         
         # Log to text file
