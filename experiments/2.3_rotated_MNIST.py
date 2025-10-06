@@ -23,6 +23,7 @@ sys.path.insert(0, str(ROOT))
 from utils.models.mlp import BasicClassifierModule, BottleneckClassifierModule 
 from utils.models.achille import get_activation
 from utils.callbacks import SaveModelInformationCallback, get_all_test_callbacks
+from utils.data import save_dataset_examples
 
 
 # Experiment params - general
@@ -31,7 +32,7 @@ SKIP_BASELINE = False
 DATALOADER_NUM_WORKERS = 4
 
 
-SOURCE_ROTATIONS = [2.5, 5, 10, 20, 40]
+SOURCE_ROTATIONS = [2.5, 5, 10, 40]
 TARGET_ROTATION = 0
 EVAL_ROTATIONS = [360 - x for x in SOURCE_ROTATIONS]
 
@@ -270,6 +271,8 @@ if __name__ == "__main__":
                 data_dir, train=True, download=True, transform=get_rotation_transform(eval_rotation))
             tmp_MNIST_hard_subset = Subset(original_target_train_dataset, hard_indices)
             test_datasets.append((f"MNIST_hard_{eval_rotation}", set_up_test_dataset(source_MNIST_hard_subset)))
+
+        save_dataset_examples(source_train_dataset, source_train_dataset, target_MNIST_test, EXPERIMENT_DIR)
 
         # ---------------- Baseline ----------------
         if not SKIP_BASELINE:
