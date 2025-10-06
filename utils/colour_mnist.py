@@ -2,21 +2,7 @@ import torch
 from torchvision import transforms
 from typing import Optional
 
-class ColorMNIST(torch.utils.data.Dataset):
-    def __init__(self,
-                 mnist_dataset,
-                 theta: Optional[float] = None,
-                 fixed_colour_ind: Optional[int] = None,
-                 ):
-
-        self.mnist = mnist_dataset
-        self.transform = transforms.Compose([
-            transforms.Grayscale(num_output_channels=3),
-            transforms.ToTensor(),
-        ])
-        self.theta = theta
-        self.fixed_colour_ind = fixed_colour_ind
-        self.shape_colour_map = {
+COLOUR_MAP = {
             0: ('red',     [1.0, 0.2, 0.2]),
             1: ('green',   [0.2, 1.0, 0.2]),
             2: ('blue',    [0.2, 0.2, 1.0]),
@@ -28,6 +14,23 @@ class ColorMNIST(torch.utils.data.Dataset):
             8: ('lime',    [0.6, 1.0, 0.2]),
             9: ('brown',   [0.6, 0.4, 0.2])
         }
+
+class ColorMNIST(torch.utils.data.Dataset):
+    def __init__(self,
+                 mnist_dataset,
+                 theta: Optional[float] = None,
+                 fixed_colour_ind: Optional[int] = None,
+                 colour_map = COLOUR_MAP
+                 ):
+
+        self.mnist = mnist_dataset
+        self.transform = transforms.Compose([
+            transforms.Grayscale(num_output_channels=3),
+            transforms.ToTensor(),
+        ])
+        self.theta = theta
+        self.fixed_colour_ind = fixed_colour_ind
+        self.shape_colour_map = colour_map
         self.color_map_tensor = {
             k: torch.tensor(v[1], dtype=torch.float32).view(3,1,1)
             for k,v in self.shape_colour_map.items()

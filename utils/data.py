@@ -91,3 +91,34 @@ def save_dataset_examples(train_dataset, blurry_train_dataset, test_dataset, out
         fig.savefig(save_path, dpi=150)
         plt.close(fig)
         print(f"Saved {n} {name} dataset input examples to {save_path}")
+
+
+def save_dataset_examples_3ch(target_dataset, source_dataset, test_dataset, out_dir: Path, n: int = 5):
+    """
+    Save n example RGB images from each dataset (train, blurry train, test) to visualize transforms.
+    Assumes images have shape (C, H, W) with C=3.
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    datasets_info = [
+        ("target_dataset", target_dataset),
+        ("source_dataset", source_dataset),
+        ("test", test_dataset),
+    ]
+
+    for name, dataset in datasets_info:
+        fig, axes = plt.subplots(1, n, figsize=(n * 2, 2))
+        for i in range(n):
+            img, label = dataset[i]  # img shape: (C, H, W)
+            img_np = img.permute(1, 2, 0).numpy()  # convert to (H, W, C) for imshow
+
+            axes[i].imshow(img_np)
+            axes[i].set_title(str(label))
+            axes[i].axis("off")
+
+        fig.suptitle(f"{name} samples", fontsize=14)
+        plt.tight_layout()
+        save_path = out_dir / f"{name}_examples.png"
+        fig.savefig(save_path, dpi=150)
+        plt.close(fig)
+        print(f"Saved {n} {name} dataset input examples to {save_path}")

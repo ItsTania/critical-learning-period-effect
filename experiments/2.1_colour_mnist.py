@@ -24,9 +24,10 @@ from utils.models.mlp import BasicClassifierModule, BottleneckClassifierModule
 from utils.models.achille import get_activation
 from utils.callbacks import SaveModelInformationCallback, get_all_test_callbacks
 from utils.colour_mnist import ColorMNIST
+from utils.data import save_dataset_examples_3ch
 
 # Experiment params - general
-NUMBER_RUNS = 2
+NUMBER_RUNS = 1
 EXPERIMENT_DIR = ROOT / Path("artifacts/experiment_results/multi-channel-example")
 SKIP_BASELINE=False
 DATALOADER_NUM_WORKERS=4
@@ -267,7 +268,7 @@ if __name__ == "__main__":
 
 
     # Sanity check! Save examples of the train, blurry, and test
-    # save_dataset_examples(target_train_dataset, source_train_dataset, test_dataset, EXPERIMENT_DIR)
+    save_dataset_examples_3ch(target_train_dataset, source_train_dataset, test_dataset, EXPERIMENT_DIR)
 
     # Train models! Random init
     if SKIP_BASELINE:
