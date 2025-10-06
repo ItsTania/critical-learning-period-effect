@@ -36,7 +36,7 @@ TARGET_THETA = 0.999
 EVAL_THETA = 0
 STD_COLOUR_NOISE=0
 
-EXPERIMENT_DIR = ROOT / Path(f"artifacts/experiment_results/colourMNISTnoisy_source{SOURCE_THETA}_target{TARGET_THETA}_target{EVAL_THETA}_colourNoiseSTD{STD_COLOUR_NOISE}")
+EXPERIMENT_DIR = ROOT / Path(f"artifacts/experiment_results/colourMNISTnoisy_source{SOURCE_THETA}_target{TARGET_THETA}_eval{EVAL_THETA}_colourNoiseSTD{STD_COLOUR_NOISE}")
 
 
 if torch.mps.is_available():

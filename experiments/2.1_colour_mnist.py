@@ -36,7 +36,7 @@ SOURCE_THETA = 1 # 0 is random while 1 is spurrious
 TARGET_THETA = 0.999
 EVAL_THETA = 0
 
-EXPERIMENT_DIR = ROOT / Path(f"artifacts/experiment_results/colourMNIST_source{SOURCE_THETA}_target{TARGET_THETA}_target{EVAL_THETA}")
+EXPERIMENT_DIR = ROOT / Path(f"artifacts/experiment_results/colourMNIST_source{SOURCE_THETA}_target{TARGET_THETA}_eval{EVAL_THETA}")
 
 
 if torch.mps.is_available():
