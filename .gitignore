@@ -2,7 +2,10 @@
 __pycache__/
 *.py[codz]
 *$py.class
-artifacts/*
+
+# Experiment outcomes
+artifacts/data/*
+artifacts/experiment_results/*
 
 !artifacts/data/hard_indices.npy
 !artifacts/data/new_train_indices.npy
