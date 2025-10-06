@@ -71,8 +71,13 @@ class SaveModelInformationCallback(Callback):
     ''' Save the initial and final model and its full history'''
     def __init__(self, save_dir='model_checkpoint'):
         self.save_dir = save_dir
+        self.has_run = False
 
     def on_train_begin(self, net, **kwargs):
+        if self.has_run:
+            return
+        self.has_run = True
+        
         # Initialise logging dir
         logging_dir = os.path.join(self.save_dir, "initial")
         os.makedirs(logging_dir, exist_ok=True)
