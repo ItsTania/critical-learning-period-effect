@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "ipywidgets>=8.1.7",
     "matplotlib>=3.10.6",
     "nbformat>=5.10.4",
     "pandas>=2.3.2",
