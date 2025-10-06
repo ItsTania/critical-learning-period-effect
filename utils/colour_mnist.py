@@ -2,6 +2,11 @@ import torch
 from torchvision import transforms
 from typing import Optional
 
+transform_3ch = transforms.Compose([
+    transforms.Grayscale(num_output_channels=3), 
+    transforms.ToTensor(),
+    ])
+
 COLOUR_MAP = {
             0: ('red',     [1.0, 0.2, 0.2]),
             1: ('green',   [0.2, 1.0, 0.2]),

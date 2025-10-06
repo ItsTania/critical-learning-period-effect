@@ -23,7 +23,7 @@ sys.path.insert(0, str(ROOT))
 from utils.models.mlp import BasicClassifierModule, BottleneckClassifierModule 
 from utils.models.achille import get_activation
 from utils.callbacks import SaveModelInformationCallback, get_all_test_callbacks
-from utils.colour_mnist import ColorMNIST
+from utils.colour_mnist import ColorMNIST, transform_3ch
 from utils.data import save_dataset_examples_3ch
 
 # Experiment params - general
@@ -238,6 +238,12 @@ if __name__ == "__main__":
 
     # Split into subset
     Original_MNIST_train = torchvision.datasets.MNIST(data_dir, train=True, download=True)
+    Original_MNIST_train_3CH = torchvision.datasets.MNIST(
+        root=data_dir,
+        train=True,
+        download=True,
+        transform=transform_3ch
+        )
     hard_indices = np.load(os.path.join(data_dir, "hard_indices.npy"))
     complementary_indices = np.load(os.path.join(data_dir, "new_train_indices.npy"))
     MNIST_train = Subset(Original_MNIST_train, complementary_indices)
@@ -254,16 +260,18 @@ if __name__ == "__main__":
 
     # Set up the test datasets
     MNIST_test = torchvision.datasets.MNIST(data_dir, train=False, download=True)
-    tmp_test_dataset = ColorMNIST(MNIST_test, theta=EVAL_THETA)
-    test_dataset = set_up_test_dataset(tmp_test_dataset)
-
-    tmp_hard_test_dataset = ColorMNIST(MNIST_hard_subset, theta=EVAL_THETA)
-    hard_test_dataset = set_up_test_dataset(tmp_hard_test_dataset)
+    test_dataset = set_up_test_dataset(ColorMNIST(MNIST_test, theta=TARGET_THETA))
+    
+    target_hard_dataset = set_up_test_dataset(ColorMNIST(MNIST_hard_subset, theta=TARGET_THETA))
+    eval_hard_dataset = set_up_test_dataset(ColorMNIST(MNIST_hard_subset, theta=EVAL_THETA))
+    gray_hard_dataset = set_up_test_dataset(Subset(Original_MNIST_train_3CH, hard_indices))
 
 
     test_datasets=[
-        ("MNIST_test", test_dataset),
-        ("MNIST_hard", hard_test_dataset)
+        ("MNIST_test_target", test_dataset),
+        ("MNIST_hard_target", target_hard_dataset),
+        ("MNIST_hard_eval", eval_hard_dataset),
+        ("MNIST_hard_gray", gray_hard_dataset)
         ]
 
 
