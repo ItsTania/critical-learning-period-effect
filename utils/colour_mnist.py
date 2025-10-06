@@ -87,3 +87,79 @@ class ColorMNIST(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.mnist)
     
+
+class NoisyColorMNIST(torch.utils.data.Dataset):
+    def __init__(self,
+                 mnist_dataset,
+                 theta: Optional[float] = None,
+                 fixed_colour_ind: Optional[int] = None,
+                 colour_map = COLOUR_MAP,
+                 colour_noise_std=0
+                 ):
+
+        self.mnist = mnist_dataset
+        self.transform = transforms.Compose([
+            transforms.Grayscale(num_output_channels=3),
+            transforms.ToTensor(),
+        ])
+        self.theta = theta
+        self.fixed_colour_ind = fixed_colour_ind
+        self.shape_colour_map = colour_map
+        self.color_map_tensor = {
+            k: torch.tensor(v[1], dtype=torch.float32).view(3,1,1)
+            for k,v in self.shape_colour_map.items()
+            }
+        self.num_classes = len(self.shape_colour_map)
+        self.colour_noise_std= colour_noise_std
+
+    def __getitem__(self, index):
+        '''
+        Get an item from the dataset, applying the spurious colour logic
+        Returns a tuple of (image, digit, colour)
+        '''
+        img, label = self.mnist[index]
+
+        # Colour assignment
+        if self.fixed_colour_ind is not None:
+            colour_int = self.fixed_colour_ind # Fixed
+        else:
+            probs = self.get_colour_probabilities(colour_index=int(label))
+            colour_int = torch.multinomial(probs, 1).item()
+        
+        # Get colour map
+        if self.colour_noise_std > 0:
+            noise = torch.randn_like(self.color_map_tensor[colour_int]) * self.colour_noise_std
+            noisy_colour = torch.clamp(self.color_map_tensor[colour_int] + noise, 0.0, 1.0)
+        else:
+            noisy_colour = self.color_map_tensor[colour_int]
+
+        # Transform greyscale image to RGB
+        img_tensor = self.transform(img)
+        colorised_img = img_tensor * noisy_colour
+
+        return colorised_img, label #, colour_int
+
+    def get_colour_name(self, colour_index):
+        assert colour_index in self.shape_colour_map, \
+            f"Colour index must be one of {list(self.shape_colour_map.keys())}, got {colour_index}"
+        return self.shape_colour_map[colour_index][0]
+
+    def get_colour_rgb(self, colour_index):
+        assert colour_index in self.shape_colour_map, \
+            f"Colour index must be one of {list(self.shape_colour_map.keys())}, got {colour_index}"
+        return self.shape_colour_map[colour_index][1]
+
+    def get_colour_probabilities(self, colour_index):
+      identity = torch.zeros(self.num_classes)
+      identity[colour_index] = 1.0
+
+      uniform = torch.ones(self.num_classes) / self.num_classes
+
+      probs = self.theta * identity + (1 - self.theta) * uniform
+      return probs
+
+    def update_theta(self, new_theta):
+      self.theta = new_theta
+
+    def __len__(self):
+        return len(self.mnist)

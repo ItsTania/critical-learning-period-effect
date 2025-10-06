@@ -14,7 +14,6 @@ import numpy as np
 
 import skorch 
 from skorch import NeuralNetClassifier 
-from skorch.helper import predefined_split
 from skorch.callbacks import ProgressBar
 
 ROOT=Path(__file__).resolve().parent.parent
@@ -23,7 +22,7 @@ sys.path.insert(0, str(ROOT))
 from utils.models.mlp import BasicClassifierModule, BottleneckClassifierModule 
 from utils.models.achille import get_activation
 from utils.callbacks import SaveModelInformationCallback, get_all_test_callbacks
-from utils.colour_mnist import ColorMNIST, transform_3ch
+from utils.colour_mnist import NoisyColorMNIST, transform_3ch
 from utils.data import save_dataset_examples_3ch
 
 # Experiment params - general
@@ -35,8 +34,9 @@ DATALOADER_NUM_WORKERS=4
 SOURCE_THETA = 1 # 0 is random while 1 is spurrious
 TARGET_THETA = 0.999
 EVAL_THETA = 0
+STD_COLOUR_NOISE=0
 
-EXPERIMENT_DIR = ROOT / Path(f"artifacts/experiment_results/colourMNIST_source{SOURCE_THETA}_target{TARGET_THETA}_target{EVAL_THETA}")
+EXPERIMENT_DIR = ROOT / Path(f"artifacts/experiment_results/colourMNISTnoisy_source{SOURCE_THETA}_target{TARGET_THETA}_target{EVAL_THETA}_colourNoiseSTD{STD_COLOUR_NOISE}")
 
 
 if torch.mps.is_available():
@@ -253,8 +253,8 @@ if __name__ == "__main__":
     assert len(MNIST_train) + len(MNIST_hard_subset) == len(Original_MNIST_train)
 
     # Transform the source and train datasets
-    source_train_dataset = ColorMNIST(MNIST_train, theta=SOURCE_THETA)
-    target_train_dataset = ColorMNIST(MNIST_train, theta=TARGET_THETA)
+    source_train_dataset = NoisyColorMNIST(MNIST_train, theta=SOURCE_THETA, colour_noise_std=STD_COLOUR_NOISE)
+    target_train_dataset = NoisyColorMNIST(MNIST_train, theta=TARGET_THETA, colour_noise_std=STD_COLOUR_NOISE)
 
     # Get the input dimension
     x0, y0 = target_train_dataset[0]
@@ -262,10 +262,10 @@ if __name__ == "__main__":
 
     # Set up the test datasets
     MNIST_test = torchvision.datasets.MNIST(data_dir, train=False, download=True)
-    test_dataset = set_up_test_dataset(ColorMNIST(MNIST_test, theta=TARGET_THETA))
+    test_dataset = set_up_test_dataset(NoisyColorMNIST(MNIST_test, theta=TARGET_THETA, colour_noise_std=STD_COLOUR_NOISE))
     
-    target_hard_dataset = set_up_test_dataset(ColorMNIST(MNIST_hard_subset, theta=TARGET_THETA))
-    eval_hard_dataset = set_up_test_dataset(ColorMNIST(MNIST_hard_subset, theta=EVAL_THETA))
+    target_hard_dataset = set_up_test_dataset(NoisyColorMNIST(MNIST_hard_subset, theta=TARGET_THETA, colour_noise_std=STD_COLOUR_NOISE))
+    eval_hard_dataset = set_up_test_dataset(NoisyColorMNIST(MNIST_hard_subset, theta=EVAL_THETA))
     gray_hard_dataset = set_up_test_dataset(Subset(Original_MNIST_train_3CH, hard_indices))
 
 
