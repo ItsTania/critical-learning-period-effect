@@ -28,8 +28,8 @@ from utils.colour_mnist import ColorMNIST, transform_3ch
 from utils.data import save_dataset_examples_3ch
 
 # Experiment params - general
-NUMBER_RUNS = 3
-SKIP_BASELINE=False
+NUMBER_RUNS = 1
+SKIP_BASELINE=True
 DATALOADER_NUM_WORKERS=4
 
 
@@ -51,7 +51,7 @@ else:
 # Experiment params - taken from Achilles
 MODEL=BottleneckClassifierModule
 ACTIVATION=get_activation('relu')
-PRETRAINING_EPOCHS= [1,2,3]#0, 20, 40, 80, 160, 326]
+PRETRAINING_EPOCHS= [1,2]#0, 20, 40, 80, 160, 326]
 CLEAN_EPOCHS=1#00
 LEARNING_RATE=0.005
 BATCH=128
@@ -117,7 +117,7 @@ def pretrain_MNIST_models(
     ''' Train the source models on the 'degraded' training conditions.'''
 
     # Return paths to models for ease.
-    list_of_model_files: list[list[Path]] = []
+    list_of_model_files: List[List[Tuple[int, Path]]] = []
     list_of_model_histories: list[Path] = []
 
     for run in trange(NUMBER_RUNS, desc="Degraded Pretraining Runs"):
@@ -153,7 +153,7 @@ def pretrain_MNIST_models(
             model_path = logging_dir_run / f'{epochs}_pretrained_model_weights.pt'
             print(f"Saving model parameters to {str(model_path)}")
             torch.save(net.module_.state_dict(), str(model_path))
-            model_files.append(model_path)
+            model_files.append((epochs, model_path))
 
         # Save history.
         df = pd.DataFrame(net.history)
@@ -169,7 +169,7 @@ def pretrain_MNIST_models(
 # Load blurry data parameters and further train
 def train_MNIST_model_from_pretrained_init(
         run, 
-        pretrained_weights_fp: List[Path], 
+        pretrained_weights_fp: List[Tuple[int, Path]], 
         train_dataset, 
         test_datasets: List[Tuple[str, skorch.dataset.Dataset]],
         logging_dir: Path, 
@@ -177,15 +177,7 @@ def train_MNIST_model_from_pretrained_init(
         dataset_classes=list(range(10)),
         input_dim=784):
     
-    for fp in pretrained_weights_fp:
-        # Get the number of epochs
-        pattern = r"^(\d+)_"
-        match = re.search(pattern, str(fp))
-        if match is not None:
-            epoch = match.group(1)
-        else:
-            raise ValueError(f"Could not extract epoch from filename: {fp}")
-        
+    for epoch, fp in pretrained_weights_fp:
         # Log in a new directory
         logging_dir_run = logging_dir / f"run_{run}" / f"epoch_{epoch}"
 
