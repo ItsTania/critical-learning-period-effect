@@ -22,17 +22,17 @@ sys.path.insert(0, str(ROOT))
 
 from utils.models.mlp import BasicClassifierModule, BottleneckClassifierModule 
 from utils.models.achille import get_activation
-from utils.callbacks import SaveModelInformationCallback, valid_acc_epoch_logger, get_all_test_callbacks
+from utils.callbacks import SaveModelInformationCallback, get_all_test_callbacks
 from utils.colour_mnist import ColorMNIST
 
 # Experiment params - general
-NUMBER_RUNS = 3
+NUMBER_RUNS = 2
 EXPERIMENT_DIR = ROOT / Path("artifacts/experiment_results/multi-channel-example")
 SKIP_BASELINE=False
 DATALOADER_NUM_WORKERS=4
 
 SOURCE_THETA = 1 # 0 is spurrious while 1 is random
-TARGET_THETA = 0
+TARGET_THETA = 0.999
 EVAL_THETA = 0
 
 
@@ -47,8 +47,8 @@ else:
 # Experiment params - taken from Achilles
 MODEL=BasicClassifierModule
 ACTIVATION=get_activation('relu')
-PRETRAINING_EPOCHS= 500 
-CLEAN_EPOCHS=50
+PRETRAINING_EPOCHS= 2#500 
+CLEAN_EPOCHS=2#50
 LEARNING_RATE=0.005
 BATCH=128
 OPTIMIZER=torch.optim.Adam
@@ -59,7 +59,6 @@ CRITERION=torch.nn.CrossEntropyLoss
 # Train baseline models
 def train_MNIST_models_from_random_init(
         train_dataset, 
-        test_dataset, 
         test_datasets: List[Tuple[str, skorch.dataset.Dataset]], 
         logging_dir: Path, 
         num_epochs:int=CLEAN_EPOCHS, 
@@ -84,15 +83,13 @@ def train_MNIST_models_from_random_init(
             criterion=CRITERION,
             device=DEVICE,
             callbacks=callbacks,
-            train_split=predefined_split(test_dataset),
+            train_split=None,
             classes=dataset_classes,
             module__activation=ACTIVATION,
             module__input_dim=input_dim,
             iterator_train__num_workers=DATALOADER_NUM_WORKERS,
-            iterator_valid__num_workers=DATALOADER_NUM_WORKERS,
             iterator_train__shuffle=True
             )
-        net.heldout_test_dataset=test_dataset
 
         # Start training
         net.fit(train_dataset, y=None, epochs=num_epochs)
@@ -108,7 +105,6 @@ def train_MNIST_models_from_random_init(
 # Pretrain models on the blurry data
 def pretrain_MNIST_models(
         train_dataset, 
-        test_dataset, 
         test_datasets: List[Tuple[str, skorch.dataset.Dataset]], 
         logging_dir: Path, 
         num_epochs:int=PRETRAINING_EPOCHS, 
@@ -136,15 +132,13 @@ def pretrain_MNIST_models(
             criterion=CRITERION,
             device=DEVICE,
             callbacks=callbacks,
-            train_split=predefined_split(test_dataset),
+            train_split=None,
             classes=dataset_classes,
             module__activation=ACTIVATION,
             module__input_dim=input_dim,
             iterator_train__num_workers=DATALOADER_NUM_WORKERS,
-            iterator_valid__num_workers=DATALOADER_NUM_WORKERS,
             iterator_train__shuffle=True
             )
-        net.heldout_test_dataset=test_dataset
 
         # Start Training.
         net.fit(train_dataset, y=None, epochs=num_epochs)
@@ -168,7 +162,6 @@ def train_MNIST_model_from_pretrained_init(
         run, 
         pretrained_weights_fp: Path, 
         train_dataset, 
-        test_dataset, 
         test_datasets: List[Tuple[str, skorch.dataset.Dataset]],
         logging_dir: Path, 
         num_epochs:int=CLEAN_EPOCHS, 
@@ -191,15 +184,13 @@ def train_MNIST_model_from_pretrained_init(
         device=DEVICE,
         warm_start=True,
         callbacks=callbacks,
-        train_split=predefined_split(test_dataset),
+        train_split=None,
         classes=dataset_classes,
         module__activation=ACTIVATION,
         module__input_dim=input_dim,
         iterator_train__num_workers=DATALOADER_NUM_WORKERS,
-        iterator_valid__num_workers=DATALOADER_NUM_WORKERS,
         iterator_train__shuffle=True
         )
-    net.heldout_test_dataset=test_dataset
     net.initialize()
     print(f"Loading from {str(pretrained_weights_fp)}")
     state_dict = torch.load(str(pretrained_weights_fp), map_location=net.device)
@@ -233,11 +224,11 @@ if __name__ == "__main__":
 
     # Set root directory for logging and ensure they exist
     print(f"Starting experiment run {EXPERIMENT_DIR}!")
-    randominit_logging_dir = EXPERIMENT_DIR / 'random_init'
+    randominit_logging_dir = EXPERIMENT_DIR / 'target_w_random_init'
     os.makedirs(randominit_logging_dir, exist_ok=True)
-    pretrained_models_logging_dir = EXPERIMENT_DIR / 'pretraining_on_blur'
+    pretrained_models_logging_dir = EXPERIMENT_DIR / 'pretraining_on_source'
     os.makedirs(pretrained_models_logging_dir, exist_ok=True)
-    noisyinit_logging_dir = EXPERIMENT_DIR / "blur_pretrained_init"
+    noisyinit_logging_dir = EXPERIMENT_DIR / "target_w_source_init"
     os.makedirs(noisyinit_logging_dir, exist_ok=True)
 
     # Load relevant datasets
@@ -247,9 +238,9 @@ if __name__ == "__main__":
     # Split into subset
     Original_MNIST_train = torchvision.datasets.MNIST(data_dir, train=True, download=True)
     hard_indices = np.load(os.path.join(data_dir, "hard_indices.npy"))
-    complementary_indices = np.load(os.path.join(data_dir, "complementary_indices.npy"))
+    complementary_indices = np.load(os.path.join(data_dir, "new_train_indices.npy"))
     MNIST_train = Subset(Original_MNIST_train, complementary_indices)
-    MNIST_hard_subset = Subset(MNIST_train, hard_indices)
+    MNIST_hard_subset = Subset(Original_MNIST_train, hard_indices)
     assert len(MNIST_train) + len(MNIST_hard_subset) == len(Original_MNIST_train)
 
     # Transform the source and train datasets
@@ -284,7 +275,6 @@ if __name__ == "__main__":
     else:
         random_init_model_histories = train_MNIST_models_from_random_init(
             train_dataset=target_train_dataset, 
-            test_dataset=test_dataset, 
             logging_dir=randominit_logging_dir,
             test_datasets=test_datasets,
             input_dim=input_dim
@@ -297,7 +287,6 @@ if __name__ == "__main__":
     # Train models! Pretrain
     pretrain_model_histories, pretrain_model_params = pretrain_MNIST_models(
         train_dataset=source_train_dataset, ## Blurry dataset here!
-        test_dataset=test_dataset, 
         logging_dir=pretrained_models_logging_dir,
         test_datasets=test_datasets,
         input_dim=input_dim
@@ -314,7 +303,6 @@ if __name__ == "__main__":
         net_history = train_MNIST_model_from_pretrained_init(
             run=run,
             train_dataset=target_train_dataset, 
-            test_dataset=test_dataset,
             pretrained_weights_fp=model_params, 
             logging_dir=noisyinit_logging_dir,
             test_datasets=test_datasets,
