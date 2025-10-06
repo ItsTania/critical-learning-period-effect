@@ -2,25 +2,25 @@ import os
 import sys
 import gc
 from pathlib import Path
+from typing import List, Tuple
 
 import torch
-from torch.utils.data import DataLoader
 import torchvision
-from tqdm import trange # type: ignore
-import pandas as pd # type: ignore
+from tqdm import trange
+import pandas as pd
 
-import skorch
-from skorch import NeuralNetClassifier # type: ignore
-from skorch.helper import predefined_split  # type: ignore
-from skorch.callbacks import ProgressBar # type: ignore
+import skorch 
+from skorch import NeuralNetClassifier 
+from skorch.helper import predefined_split
+from skorch.callbacks import ProgressBar
 
 ROOT=Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from utils.models.mlp import BasicClassifierModule, BottleneckClassifierModule # noqa: E402
-from utils.models.achille import get_activation # noqa: E402
-from utils.callbacks import SaveModelInformationCallback, valid_acc_epoch_logger, SkorchTestPerformanceLogger  # noqa: E402
-from utils.colour_mnist import ColorMNIST # noqa: E402
+from utils.models.mlp import BasicClassifierModule, BottleneckClassifierModule 
+from utils.models.achille import get_activation
+from utils.callbacks import SaveModelInformationCallback, valid_acc_epoch_logger, get_all_test_callbacks
+from utils.colour_mnist import ColorMNIST
 
 # Experiment params - general
 NUMBER_RUNS = 3
@@ -44,7 +44,7 @@ else:
 # Experiment params - taken from Achilles
 MODEL=BasicClassifierModule
 ACTIVATION=get_activation('relu')
-PRETRAINING_EPOCHS= 500 # In the paper they test [40 * x for x in range(12)]
+PRETRAINING_EPOCHS= 500 
 CLEAN_EPOCHS=50
 LEARNING_RATE=0.005
 BATCH=128
@@ -54,17 +54,26 @@ CRITERION=torch.nn.CrossEntropyLoss
 
 
 # Train baseline models
-def train_MNIST_models_from_random_init(train_dataset, test_dataset, test_loader, logging_dir: Path, num_epochs:int=CLEAN_EPOCHS, dataset_classes=list(range(10)), input_dim=784):
+def train_MNIST_models_from_random_init(
+        train_dataset, 
+        test_dataset, 
+        test_datasets: List[Tuple[str, skorch.dataset.Dataset]], 
+        logging_dir: Path, 
+        num_epochs:int=CLEAN_EPOCHS, 
+        dataset_classes=list(range(10)), 
+        input_dim=784):
+    ''' Train the basline models from random initialisation'''
+
     list_of_model_histories: list[Path] = []
     for run in trange(NUMBER_RUNS, desc="Random Init Runs"):
         logging_dir_run = logging_dir / f"run_{run}"
         
-        test_callback = SkorchTestPerformanceLogger(
-                test_loader=test_loader,
-                experiment_dir=logging_dir_run,
-                linear_every_n_batches=10,
-                log_base_scheduler=4
-            )
+        test_callbacks = get_all_test_callbacks(test_datasets=test_datasets, logging_dir_run=logging_dir_run)
+        callbacks = [
+            valid_acc_epoch_logger, 
+            SaveModelInformationCallback(save_dir=str(logging_dir_run)),
+            ProgressBar(),
+            *test_callbacks,]
         
         net = NeuralNetClassifier(
             module=MODEL,
@@ -72,22 +81,21 @@ def train_MNIST_models_from_random_init(train_dataset, test_dataset, test_loader
             optimizer=OPTIMIZER,
             criterion=CRITERION,
             device=DEVICE,
-            callbacks=[
-                valid_acc_epoch_logger,
-                SaveModelInformationCallback(save_dir=str(logging_dir_run)), 
-                test_callback,
-                ProgressBar()],
+            callbacks=callbacks,
             train_split=predefined_split(test_dataset),
             classes=dataset_classes,
             module__activation=ACTIVATION,
             module__input_dim=input_dim,
             iterator_train__num_workers=DATALOADER_NUM_WORKERS,
             iterator_valid__num_workers=DATALOADER_NUM_WORKERS,
+            iterator_train__shuffle=True
             )
         net.heldout_test_dataset=test_dataset
+
+        # Start training
         net.fit(train_dataset, y=None, epochs=num_epochs)
 
-        # Save history. Both redundant as this is saved through the callback. But am coding quickly at the moment and prefer to have redundancies. 
+        # Save history. 
         df = pd.DataFrame(net.history)
         df['run'] = run
         df.to_csv(str(logging_dir_run / "net_history.csv"))
@@ -96,19 +104,29 @@ def train_MNIST_models_from_random_init(train_dataset, test_dataset, test_loader
     return list_of_model_histories
 
 # Pretrain models on the blurry data
-def pretrain_MNIST_models(train_dataset, test_dataset, test_loader, logging_dir: Path, num_epochs:int=PRETRAINING_EPOCHS, dataset_classes=list(range(10)), input_dim=784):
+def pretrain_MNIST_models(
+        train_dataset, 
+        test_dataset, 
+        test_datasets: List[Tuple[str, skorch.dataset.Dataset]], 
+        logging_dir: Path, 
+        num_epochs:int=PRETRAINING_EPOCHS, 
+        dataset_classes=list(range(10)), 
+        input_dim=784):
+    ''' Train the source models on the 'degraded' training conditions.'''
+
+    # Return paths to models for ease.
     list_of_model_files: list[Path] = []
     list_of_model_histories: list[Path] = []
 
     for run in trange(NUMBER_RUNS, desc="Degraded Pretraining Runs"):
         logging_dir_run = logging_dir / f"run_{run}"
         
-        test_callback = SkorchTestPerformanceLogger(
-                test_loader=test_loader,
-                experiment_dir=logging_dir_run,
-                linear_every_n_batches=10,
-                log_base_scheduler=4
-            )
+        test_callbacks = get_all_test_callbacks(test_datasets=test_datasets, logging_dir_run=logging_dir_run)
+        callbacks = [
+            valid_acc_epoch_logger, 
+            SaveModelInformationCallback(save_dir=str(logging_dir_run)),
+            ProgressBar(),
+            *test_callbacks,]
             
         net = NeuralNetClassifier(
             module=MODEL,
@@ -116,19 +134,18 @@ def pretrain_MNIST_models(train_dataset, test_dataset, test_loader, logging_dir:
             optimizer=OPTIMIZER,
             criterion=CRITERION,
             device=DEVICE,
-            callbacks=[
-                valid_acc_epoch_logger,
-                SaveModelInformationCallback(save_dir=str(logging_dir_run)), 
-                test_callback,
-                ProgressBar()],
+            callbacks=callbacks,
             train_split=predefined_split(test_dataset),
             classes=dataset_classes,
             module__activation=ACTIVATION,
             module__input_dim=input_dim,
             iterator_train__num_workers=DATALOADER_NUM_WORKERS,
             iterator_valid__num_workers=DATALOADER_NUM_WORKERS,
+            iterator_train__shuffle=True
             )
         net.heldout_test_dataset=test_dataset
+
+        # Start Training.
         net.fit(train_dataset, y=None, epochs=num_epochs)
 
         # Save history.
@@ -139,22 +156,32 @@ def pretrain_MNIST_models(train_dataset, test_dataset, test_loader, logging_dir:
         
         # Save model
         model_path = logging_dir_run / 'pretrained_model_weights.pt'
-        print(f"Saving model parameters to {str(model_path)}") # Both redundant as this is saved through the callback. But am coding quickly at the moment and prefer to have redundancies. 
+        print(f"Saving model parameters to {str(model_path)}")
         torch.save(net.module_.state_dict(), str(model_path))
         list_of_model_files.append(model_path)
 
     return list_of_model_histories, list_of_model_files
 
 # Load blurry data parameters and further train
-def train_MNIST_model_from_pretrained_init(run, pretrained_weights_fp: Path, train_dataset, test_dataset, test_loader, logging_dir: Path, num_epochs:int=CLEAN_EPOCHS, dataset_classes=list(range(10)),input_dim=784):
+def train_MNIST_model_from_pretrained_init(
+        run, 
+        pretrained_weights_fp: Path, 
+        train_dataset, 
+        test_dataset, 
+        test_datasets: List[Tuple[str, skorch.dataset.Dataset]],
+        logging_dir: Path, 
+        num_epochs:int=CLEAN_EPOCHS, 
+        dataset_classes=list(range(10)),
+        input_dim=784):
     logging_dir_run = logging_dir / f"run_{run}"
-    
-    test_callback = SkorchTestPerformanceLogger(
-                test_loader=test_loader,
-                experiment_dir=logging_dir_run,
-                linear_every_n_batches=10,
-                log_base_scheduler=4
-            )
+
+    # Define callbacks
+    test_callbacks = get_all_test_callbacks(test_datasets=test_datasets, logging_dir_run=logging_dir_run)
+    callbacks = [
+        valid_acc_epoch_logger, 
+        SaveModelInformationCallback(save_dir=str(logging_dir_run)),
+        ProgressBar(),
+        *test_callbacks,]
         
     net = NeuralNetClassifier(
         module=MODEL,
@@ -163,17 +190,14 @@ def train_MNIST_model_from_pretrained_init(run, pretrained_weights_fp: Path, tra
         criterion=CRITERION,
         device=DEVICE,
         warm_start=True,
-        callbacks=[
-            valid_acc_epoch_logger,
-            SaveModelInformationCallback(save_dir=str(logging_dir_run)), 
-            test_callback,
-            ProgressBar()],
+        callbacks=callbacks,
         train_split=predefined_split(test_dataset),
         classes=dataset_classes,
         module__activation=ACTIVATION,
         module__input_dim=input_dim,
         iterator_train__num_workers=DATALOADER_NUM_WORKERS,
         iterator_valid__num_workers=DATALOADER_NUM_WORKERS,
+        iterator_train__shuffle=True
         )
     net.heldout_test_dataset=test_dataset
     net.initialize()
@@ -228,7 +252,7 @@ if __name__ == "__main__":
     # Step 3: Wrap in TensorDataset
     test_dataset = skorch.dataset.Dataset(X_tensor, y_tensor)
     test_dataset.targets = y_tensor
-    test_loader = DataLoader(test_dataset, batch_size=BATCH, shuffle=False, num_workers=DATALOADER_NUM_WORKERS)
+    test_datasets=[("MNIST_Test", test_dataset)]
 
 
     # Sanity check! Save examples of the train, blurry, and test
@@ -242,7 +266,7 @@ if __name__ == "__main__":
             train_dataset=target_train_dataset, 
             test_dataset=test_dataset, 
             logging_dir=randominit_logging_dir,
-            test_loader=test_loader,
+            test_datasets=test_datasets,
             input_dim=input_dim
             )
 
@@ -255,8 +279,8 @@ if __name__ == "__main__":
         train_dataset=source_train_dataset, ## Blurry dataset here!
         test_dataset=test_dataset, 
         logging_dir=pretrained_models_logging_dir,
-        test_loader=test_loader,
-            input_dim=input_dim
+        test_datasets=test_datasets,
+        input_dim=input_dim
         )
 
     gc.collect()
@@ -273,7 +297,7 @@ if __name__ == "__main__":
             test_dataset=test_dataset,
             pretrained_weights_fp=model_params, 
             logging_dir=noisyinit_logging_dir,
-            test_loader=test_loader,
+            test_datasets=test_datasets,
             input_dim=input_dim
             )
         model_history_noisy_init.append(net_history)

@@ -4,6 +4,9 @@ __pycache__/
 *$py.class
 artifacts/*
 
+!artifacts/data/hard_indices.npy
+!artifacts/data/new_train_indices.npy
+
 # C extensions
 *.so
 

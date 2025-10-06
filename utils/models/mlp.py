@@ -68,10 +68,17 @@ class BottleneckClassifierModule(nn.Module):
 
         current_dim = int(input_dim/scale)
         layers = [nn.Linear(input_dim, current_dim)]
+
         layers.append(nn.Linear(current_dim, int(current_dim/scale)))
-        layers.append(nn.Linear(int(current_dim/scale), bottleneck))
+
+        layers.append(nn.Linear(int(current_dim/scale), bottleneck)) # bottleneck
+
+        layers.append(nn.Linear(bottleneck, int(current_dim/scale)))
+
+        layers.append(nn.Linear(int(current_dim/scale)), current_dim)
+
         self.hidden_layers = nn.ModuleList(layers)
-        self.output = nn.Linear(bottleneck, output_dim)
+        self.output = nn.Linear(current_dim, output_dim)
 
         self.activation = activation
 

@@ -14,3 +14,10 @@ dependencies = [
     "torch>=2.8.0",
     "torchvision>=0.23.0",
 ]
+
+[tool.mypy]
+ignore_missing_imports = true
+
+[tool.ruff]
+# Disable "module level import not at top of file" globally
+ignore = ["I001"]

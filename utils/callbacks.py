@@ -1,9 +1,12 @@
 import os
 from datetime import datetime
 import pickle
-from skorch.callbacks import Checkpoint, EpochScoring, Callback
+import skorch
+from skorch.callbacks import Checkpoint, EpochScoring, Callback 
 import torch
-import numpy as np
+from pathlib import Path
+from typing import List, Tuple
+from torch.utils.data import DataLoader
 
 ## Save model weights for further investigation
 def save_model_trigger(net):
@@ -79,7 +82,7 @@ class SaveModelInformationCallback(Callback):
             val_score = net.score(val_ds, y=val_ds.targets)
             with open(os.path.join(logging_dir,'initial_score.txt'), 'a') as f:
                 timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                f.write(f"Initial Evaluation:\n")
+                f.write("Initial Evaluation:\n")
                 f.write(f"Validation Score: {val_score}\n")
                 f.write(f"Start Time: {str(timestamp)}\n")
                 f.write("="*30 + "\n")
@@ -117,64 +120,78 @@ class SkorchTestPerformanceLogger(Callback):
                  test_loader,
                  experiment_dir,
                  metric_log_name="test",
-                 linear_every_n_batches=None,
-                 log_base_scheduler=None,
-                 model_dir="model_checkpoints",
                  logits_dir="logits"):
+        
+        # Metric
         self.test_loader = test_loader
         self.metric_log_name = metric_log_name
 
         # Logging schedule
-        self.linear_every_n_batches = linear_every_n_batches
-        self.log_base_scheduler = log_base_scheduler
-        self.next_log_batch = 1
-
-        if self.linear_every_n_batches is None and self.log_base_scheduler is None:
-            self.linear_every_n_batches = 1  # default: log every batch
+        self.checkpoint_fn = checkpoint_fn if checkpoint_fn is not None else (lambda net: True)
 
         # Directories
-        self.model_dir = os.path.join(experiment_dir, model_dir)
         self.logits_dir = os.path.join(experiment_dir, logits_dir, f"{metric_log_name}_logits")
         os.makedirs(self.model_dir, exist_ok=True)
         os.makedirs(self.logits_dir, exist_ok=True)
 
-    def should_run_logging(self, batch_idx):
-        """Scheduling Logic: Return True if we should log at this batch index."""
-        if self.linear_every_n_batches is not None:
-            if batch_idx % self.linear_every_n_batches == 0:
-                return True
-
-        if self.log_base_scheduler is not None and batch_idx >= self.next_log_batch:
-            self.next_log_batch *= self.log_base_scheduler
-            return True
-
-        return False
 
     def on_train_begin(self, net, X, y):
         print(f"[{self.metric_log_name}] Logging to: {self.logits_dir}")
-        print("Running initial test at epoch 0...")
-        self._run_test_and_log(net, epoch=0)
+        print("Running initial test and saving to epoch -1...")
+        self._run_test_and_log(net, epoch=-1)
 
     def on_epoch_end(self, net, **kwargs): 
         epoch = net.history[-1, 'epoch']
-        if self.should_run_logging(epoch):
-            self._run_test_and_log(net, epoch)
+        if self.checkpoint_fn(net):
+            logits = net.predict(self.test_loader, return_proba=True)
+            logits_file = os.path.join(self.logits_dir, f"epoch_{epoch}.pt")
+            torch.save(logits, logits_file)
 
-    def _run_test_and_log(self, net, epoch):
-        net.module_.eval()
-        all_logits = []
+def checkpoint_fn(epoch):
+    return (epoch % 10 == 0) or ((epoch & (epoch - 1)) == 0)
 
-        with torch.no_grad():
-            for xb, yb in self.test_loader:
-                xb, yb = xb.to(net.device), yb.to(net.device)
-                logits = net.module_(xb)
-                all_logits.append(logits.cpu())
+class ModelCheckpointLogger(Callback):
+    """Callback to save model checkpoints with flexible pathing."""
 
-        logits = torch.cat(all_logits)
+    def __init__(self, experiment_dir, model_dir="model_checkpoints", checkpoint_fn=None):
+        self.model_dir = os.path.join(experiment_dir, model_dir)
+        os.makedirs(self.model_dir, exist_ok=True)
+        self.checkpoint_fn = checkpoint_fn if checkpoint_fn is not None else lambda net: True
 
-        # Save logits and model checkpoint
-        logits_file = os.path.join(self.logits_dir, f"epoch_{epoch}.pt")
-        torch.save(logits, logits_file)
+    def on_epoch_end(self, net, **kwargs):
+        epoch = net.history[-1, 'epoch']
+        if self.checkpoint_fn(net):
+            model_file = os.path.join(self.model_dir, f"model_epoch_{epoch}.pt")
+            net.save_params(f_params=model_file)
+            print(f"[Checkpoint] Saved model at epoch {epoch} -> {model_file}")
 
-        model_file = os.path.join(self.model_dir, f"model_epoch_{epoch}.pt")
-        net.save_params(f_params=model_file)
+def get_all_test_callbacks(
+        test_datasets: List[Tuple[str, skorch.dataset.Dataset]],
+        logging_dir_run: Path, 
+        checkpoint_fn=checkpoint_fn,
+        batch_size: int = 128,
+        num_workers: int = 4
+) -> List[Callback]:
+    '''Convienence function to get all the relevant callbacks to log logits throughout training'''
+    callbacks=[]
+    callbacks.append(ModelCheckpointLogger(experiment_dir=logging_dir_run, checkpoint_fn=checkpoint_fn))
+    for name, dataset in test_datasets:
+        test_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+        callbacks.append(
+            SkorchTestPerformanceLogger(
+                test_loader=test_loader,
+                experiment_dir=logging_dir_run,
+                metric_log_name=name
+            )
+        )
+        callbacks.append(
+            EpochScoring(
+                scoring="accuracy",
+                lower_is_better=False,
+                on_train=False,   # use validation data
+                name=f"{name}_acc",
+                dataset=dataset
+            )
+        )
+
+    return callbacks
