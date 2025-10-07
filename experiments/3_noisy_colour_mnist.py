@@ -20,7 +20,7 @@ from utils.models.baselines import LogisticRegressionModule # noqa: E402
 from utils.models.cnn import CNN # noqa: E402
 
 from utils.callbacks import SaveModelInformationCallback, get_all_test_callbacks
-from utils.colour_mnist import ColorMNIST, transform_3ch
+from utils.colour_mnist import NoisyColorMNIST, transform_3ch
 from utils.data import save_dataset_examples_3ch
 
 import pandas as pd
@@ -33,15 +33,16 @@ DATALOADER_NUM_WORKERS=4
 SOURCE_THETA = 1 # 0 is random while 1 is spurrious
 TARGET_THETA = 0.999
 EVAL_THETA = 0
+STD_COLOUR_NOISE=0.07
 
 PRETRAINING_EPOCHS= 2#500 
 CLEAN_EPOCHS=2#100
 EXPERIMENT_DIR = Path(f"artifacts/experiment_results/ColourMNIST_source{SOURCE_THETA}_target{TARGET_THETA}")
 
 
-class ColorMNISTExperiment(BaseExperiment):
+class NoisyColorMNISTExperiment(BaseExperiment):
     """
-    Experiment for ColorMNIST variant:
+    Experiment for NoisyColorMNIST variant:
     - Baseline training
     - Pretraining on source (blurry)
     - Fine-tuning on target with pretrained init
@@ -102,8 +103,16 @@ class ColorMNISTExperiment(BaseExperiment):
         assert len(train_subset) + len(hard_subset) == len(full_train_dataset)
 
         # ColorMNIST train datasets
-        self.source_dataset = ColorMNIST(train_subset, theta=self.source_theta)
-        self.target_dataset = ColorMNIST(train_subset, theta=self.target_theta)
+        self.source_dataset = NoisyColorMNIST(
+            train_subset, 
+            theta=self.source_theta, 
+            colour_noise_std=STD_COLOUR_NOISE
+            )
+        self.target_dataset = NoisyColorMNIST(
+            train_subset, 
+            theta=self.target_theta, 
+            colour_noise_std=STD_COLOUR_NOISE
+            )
 
         # Gray hard
         mnist_train_3ch = torchvision.datasets.MNIST(
@@ -120,13 +129,13 @@ class ColorMNISTExperiment(BaseExperiment):
             train=False, 
             download=True)
         test_target = set_up_test_dataset(
-            ColorMNIST(mnist_test, theta=self.target_theta)
+            NoisyColorMNIST(mnist_test, theta=self.target_theta, colour_noise_std=STD_COLOUR_NOISE)
             )
         test_hard_target = set_up_test_dataset(
-            ColorMNIST(hard_subset, theta=self.target_theta)
+            NoisyColorMNIST(hard_subset, theta=self.target_theta, colour_noise_std=STD_COLOUR_NOISE)
             )
         test_hard_eval = set_up_test_dataset(
-            ColorMNIST(hard_subset, theta=self.eval_theta)
+            NoisyColorMNIST(hard_subset, theta=self.eval_theta, colour_noise_std=STD_COLOUR_NOISE)
             )
         test_hard_gray = set_up_test_dataset(
             gray_hard_subset
@@ -201,15 +210,11 @@ if __name__ == "__main__":
             "run_name": "LogisticRegression",
             "model_cls": LogisticRegressionModule,
         },
-        {
-            "run_name": "CNN",
-            "model_cls": CNN,
-        },
     ]
 
     for cfg in configs:
         experiment_dir = Path(EXPERIMENT_DIR) / str(cfg["run_name"])
-        exp = ColorMNISTExperiment(
+        exp = NoisyColorMNISTExperiment(
             model_cls=cfg["model_cls"],
             experiment_dir=experiment_dir,
             num_runs=NUM_RUNS,
