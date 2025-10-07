@@ -1,7 +1,9 @@
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 import torch
+
+import pandas as pd
 
 from skorch import NeuralNetClassifier
 from skorch.callbacks import ProgressBar
@@ -16,14 +18,14 @@ from utils.models.cnn import CNN # noqa: E402
 from utils.callbacks import SaveModelInformationCallback, get_all_test_callbacks  # noqa: E402
 from utils.data import MNIST_dataset, achille_preprocess, achille_transform_train, achille_blurry_transform_train, save_dataset_examples  # noqa: E402
 
-from experiments.base_experiment import BaseExperiment, set_up_test_dataset  # noqa: E402
+from experiments.base_experiment import BaseExperiment, set_up_test_dataset, combine_experiment_histories  # noqa: E402
 
 EXPERIMENT_DIR = Path("artifacts/experiment_results/achille_repl_test")
 DATALOADER_NUM_WORKERS = 4
 
 # Experiment configurations
 NUM_RUNS = 1 #10
-TARGET_EPOCHS = 1 #480
+TARGET_EPOCHS = 1 #180
 SOURCE_EPOCHS = 1 #480
 
 
@@ -161,8 +163,14 @@ class AchilleExperiment(BaseExperiment):
         ft_hist = self.run_finetuning(ckpts, target_epochs)
 
         print("Achille replication experiment completed.")
+
+        # Combine histories into a single summary DataFrame
+        try:
+            all_hist_fp = baseline_hist + pre_hist + ft_hist
+            combine_experiment_histories(all_hist_fp, save_dir=self.experiment_dir)
+        except:
+            print("Failed to save summary df")
         return baseline_hist, pre_hist, ft_hist
-    
 
 if __name__ == "__main__": 
     # Check if EXPERIMENT_DIR exists, if so, add an integer suffix
@@ -173,14 +181,6 @@ if __name__ == "__main__":
         exp_dir = Path(f"{base_dir}_{i}")
         i += 1
     EXPERIMENT_DIR = exp_dir
-
-    # Define the default config row 
-    default_config= {
-        "activation": "relu",
-        "baseline_epochs": 5,
-        "target_epochs": 40,
-        "finetune_epochs": 10,
-    }
 
     # Define the configs we want to alter, changing only the model_cls for each row
     configs = [

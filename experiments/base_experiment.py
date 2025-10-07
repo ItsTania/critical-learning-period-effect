@@ -1,4 +1,5 @@
 import os
+import re
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import List
@@ -193,3 +194,102 @@ def set_up_test_dataset(dataset) -> skorch.dataset.Dataset:
     test_dataset = skorch.dataset.Dataset(X_tensor, y_tensor)
     test_dataset.targets = y_tensor
     return test_dataset
+
+def combine_experiment_histories(
+    histories: List[Path],
+    save_dir,
+    save_name: str = "combined_results.csv"
+    ) -> pd.DataFrame:
+
+    all_histories = []
+    for hist_path in histories:
+        try:
+            history_df = pd.read_csv(hist_path)
+        except Exception as e:
+            print(f"Failed to read {hist_path}: {e}")
+            continue
+        # Add initial Scores
+        df = add_initial_scores_from_logits(history_df, hist_path.parent)
+
+        # Add identifiers
+        df["run_name"] = hist_path.parent.name
+        df["initialisation"] = hist_path.parent.parent.name
+        df["experiment_group_name"] = hist_path.parent.parent.parent.name
+
+        all_histories.append(df)
+
+    if all_histories:
+        combined_df = pd.concat(all_histories, ignore_index=True)
+        if save_dir is None:
+            print("Not saving...")
+        else:
+            combined_df.to_csv(save_dir / save_name, index=False)
+    else:
+        combined_df = pd.DataFrame()
+        print("No histories to combine.")
+    return combined_df
+
+def add_initial_scores_from_logits(history_df: pd.DataFrame, run_dir: Path, score_subdir: str = "logits") -> pd.DataFrame:
+    """
+    For a given run directory, read initial_score.txt from all subfolders of `logits` and add to history_df.
+
+    Args:
+        history_df: pd.DataFrame for a single run (history CSV)
+        run_dir: Path to the run directory (e.g., run_0)
+        score_subdir: Name of the folder containing subfolders with initial_score.txt
+
+    Returns:
+        pd.DataFrame: history_df with added columns like initial_<score_name>_acc and initial_<score_name>_loss
+    """
+    logits_dir = run_dir / score_subdir
+    if not logits_dir.exists():
+        print(f"No logits directory found at {logits_dir}")
+        return history_df
+
+    for subfolder in logits_dir.iterdir():
+        if not subfolder.is_dir():
+            continue
+        score_file = subfolder / "initial_score.txt"
+        score_name = subfolder.name
+        acc_col = f"initial_{score_name}_acc"
+        loss_col = f"initial_{score_name}_loss"
+        acc, loss = None, None
+
+        if score_file.exists():
+            try:
+                text = score_file.read_text()
+                # Extract Accuracy
+                acc_match = re.search(r"Accuracy:\s*([0-9.]+)", text)
+                if acc_match:
+                    acc = float(acc_match.group(1))
+                # Extract Loss
+                loss_match = re.search(r"Loss:\s*([0-9.]+)", text)
+                if loss_match:
+                    loss = float(loss_match.group(1))
+            except Exception as e:
+                print(f"Failed to read {score_file}: {e}")
+
+        history_df[acc_col] = acc
+        history_df[loss_col] = loss
+
+    return history_df
+
+def find_all_histories(experiment_dir: str, history_filename: str = "net_history.csv") -> List[Path]:
+    """
+    Recursively find all history CSV files in an experiment directory.
+
+    Args:
+        experiment_dir (str): Path to the root experiment directory.
+        history_filename (str): Filename to look for (default: 'net_history.csv').
+
+    Returns:
+        List[Path]: List of Paths to history CSV files.
+    """
+    exp_dir = Path(experiment_dir)
+    if not exp_dir.exists():
+        raise ValueError(f"Experiment directory {experiment_dir} does not exist.")
+
+    history_files = list(exp_dir.rglob(history_filename))
+    if not history_files:
+        print(f"No history files named '{history_filename}' found in {experiment_dir}")
+    return history_files
