@@ -123,7 +123,7 @@ class AchilleExperiment(BaseExperiment):
         assert self.test_datasets is not None, "Please run prepare datasets first."
         test_callbacks = get_all_test_callbacks(test_datasets=self.test_datasets, logging_dir_run=logging_dir)
         callbacks = [
-            SaveModelInformationCallback(save_dir=str(self.experiment_dir)),
+            SaveModelInformationCallback(save_dir=str(logging_dir)),
             ProgressBar(),
             *test_callbacks
         ]
