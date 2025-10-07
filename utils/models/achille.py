@@ -18,11 +18,11 @@ def get_activation(name):
     else:
         raise ValueError(f"Unknown activation function: {name}")
 class Achille_MNIST_FC(nn.Module):
-    def __init__(self, input_size=32, activation=F.relu):
+    def __init__(self, input_dim, activation="relu"):
         super(Achille_MNIST_FC, self).__init__()
         self.flatten = nn.Flatten()
         
-        self.hidden1 = nn.Linear(input_size*input_size, 2500)
+        self.hidden1 = nn.Linear(input_dim, 2500)
         self.bn1 = nn.BatchNorm1d(2500)
         
         self.hidden2 = nn.Linear(2500, 2000)
@@ -38,7 +38,7 @@ class Achille_MNIST_FC(nn.Module):
         self.bn5 = nn.BatchNorm1d(500)
         
         self.output = nn.Linear(500, 10) 
-        self.activation = activation
+        self.activation = get_activation(activation)
     
     def forward(self, x):
         x = self.flatten(x)
@@ -51,18 +51,18 @@ class Achille_MNIST_FC(nn.Module):
         return x
 
 class Achille_MNIST_FC_No_BatchNorm(nn.Module):
-    def __init__(self, input_size=32, activation=F.relu):
+    def __init__(self, input_dim, activation="relu"):
         super(Achille_MNIST_FC_No_BatchNorm, self).__init__()
         self.flatten = nn.Flatten()
         
-        self.hidden1 = nn.Linear(input_size*input_size, 2500)
+        self.hidden1 = nn.Linear(input_dim, 2500)
         self.hidden2 = nn.Linear(2500, 2000)
         self.hidden3 = nn.Linear(2000, 1500)
         self.hidden4 = nn.Linear(1500, 1000)
         self.hidden5 = nn.Linear(1000, 500)
         self.output = nn.Linear(500, 10)  
         
-        self.activation = activation
+        self.activation = get_activation(activation)
     
     def forward(self, x):
         x = self.flatten(x)

@@ -1,6 +1,23 @@
+import torch
 from torch import nn
 import torch.nn.functional as F
 
+def get_activation(name):
+    """Return the activation function based on a string name."""
+    name = name.lower()
+    if name == "relu":
+        return F.relu
+    elif name == "leaky_relu":
+        return lambda x: F.leaky_relu(x, negative_slope=0.01)
+    elif name == "elu":
+        return F.elu
+    elif name == "gelu":
+        return F.gelu
+    elif name == "tanh":
+        return torch.tanh
+    else:
+        raise ValueError(f"Unknown activation function: {name}")
+    
 class BasicClassifierModule(nn.Module):
     def __init__(
             self,
@@ -8,7 +25,7 @@ class BasicClassifierModule(nn.Module):
             hidden_dim=100,
             output_dim=10,
             number_of_layers=3,
-            activation = F.relu,
+            activation = 'relu',
     ):
         super(BasicClassifierModule, self).__init__()
 
@@ -18,7 +35,7 @@ class BasicClassifierModule(nn.Module):
         self.hidden_layers = nn.ModuleList(layers)
         self.output = nn.Linear(hidden_dim, output_dim)
 
-        self.activation = activation
+        self.activation = get_activation(activation)
 
     def forward(self, X, **kwargs):
         X = X.view(X.size(0), -1)
@@ -33,7 +50,7 @@ class ChokepointClassifierModule(nn.Module):
             input_dim=784,
             output_dim=10,
             number_of_layers=3,
-            activation = F.relu,
+            activation = 'relu',
             scale=4
     ):
         super(ChokepointClassifierModule, self).__init__()
@@ -46,7 +63,7 @@ class ChokepointClassifierModule(nn.Module):
         self.hidden_layers = nn.ModuleList(layers)
         self.output = nn.Linear(current_dim_size, output_dim)
 
-        self.activation = activation
+        self.activation = get_activation(activation)
 
     def forward(self, X, **kwargs):
         X = X.view(X.size(0), -1)
@@ -80,7 +97,7 @@ class BottleneckClassifierModule(nn.Module):
         self.hidden_layers = nn.ModuleList(layers)
         self.output = nn.Linear(current_dim, output_dim)
 
-        self.activation = activation
+        self.activation = get_activation(activation)
 
     def forward(self, X, **kwargs):
         X = X.view(X.size(0), -1)
