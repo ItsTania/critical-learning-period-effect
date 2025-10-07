@@ -138,18 +138,21 @@ class BaseExperiment(ABC):
         gc.collect()
         return finetune_histories
 
-    def run_full(self, baseline_epochs:int, pretrain_epochs:int, finetune_epochs:int, skip_baseline=False):
+    def run_full(self, 
+                 target_epochs:int, 
+                 source_epochs:int, 
+                 skip_baseline=False):
         print(f"Starting experiment in {self.experiment_dir}")
         self.prepare_datasets()
         if not skip_baseline:
             print("Baseline training...")
-            base_hist = self.run_baseline(baseline_epochs)
+            base_hist = self.run_baseline(target_epochs)
             print(base_hist)
         print("Pretraining...")
-        pre_hist, ckpts = self.run_pretraining(pretrain_epochs)
+        pre_hist, ckpts = self.run_pretraining(source_epochs)
         print(pre_hist)
         print("Fine-tuning...")
-        ft_hist = self.run_finetuning(ckpts, finetune_epochs)
+        ft_hist = self.run_finetuning(ckpts, target_epochs)
         print(ft_hist)
 
     def construct_hard_subset(self, original_dataset):

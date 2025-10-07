@@ -11,7 +11,7 @@ from skorch.callbacks import ProgressBar
 ROOT=Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from utils.models.achille import Achille_MNIST_FC, Achille_MNIST_FC_No_BatchNorm, get_activation  # noqa: E402, F401
+from utils.models.achille import Achille_MNIST_FC, Achille_MNIST_FC_No_BatchNorm  # noqa: E402, F401
 from utils.models.mlp import BasicClassifierModule, BottleneckClassifierModule # noqa: E402
 from utils.models.baselines import LogisticRegressionModule # noqa: E402
 from utils.models.cnn import CNN # noqa: E402
