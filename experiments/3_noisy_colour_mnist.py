@@ -86,6 +86,8 @@ class NoisyColorMNISTExperiment(BaseExperiment):
             criterion_cls=criterion_cls,
             num_runs=num_runs,
             device=device,
+            CLEAN_EPOCHS=CLEAN_EPOCHS,
+            PRETRAINING_EPOCHS=PRETRAINING_EPOCHS
         )
 
         self.nn_kwargs = nn_kwargs

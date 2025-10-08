@@ -69,6 +69,8 @@ class AchilleExperiment(BaseExperiment):
             criterion_cls=criterion_cls,
             num_runs=num_runs,
             device=device,
+            TARGET_EPOCHS=TARGET_EPOCHS,
+            SOURCE_EPOCHS=SOURCE_EPOCHS
         )
 
         self.nn_kwargs = nn_kwargs
