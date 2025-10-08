@@ -40,8 +40,14 @@ class CNN(nn.Module):
 
         # Calculate required size
         with torch.no_grad():
-            input_size = int(math.sqrt(input_dim))
-            assert input_size * input_size == input_dim, f"Input dimension {input_dim} is not a perfect square!"
+            assert input_dim % input_channels == 0, (
+                f"Input dimension {input_dim} must be divisible by num_channels={input_channels}"
+            )
+            spatial_dim = input_dim // input_channels
+            input_size = int(math.sqrt(spatial_dim))
+            assert input_size * input_size * input_channels == input_dim, (
+                f"Input dimension {input_dim} does not match {input_channels}x{input_size}x{input_size}"
+            )
 
             dummy_input = torch.zeros(1, input_channels, input_size, input_size)
             x = self.layer1(dummy_input)
