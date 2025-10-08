@@ -37,7 +37,7 @@ STD_COLOUR_NOISE=0.07
 
 PRETRAINING_EPOCHS= 2#500 
 CLEAN_EPOCHS=2#100
-EXPERIMENT_DIR = Path(f"artifacts/experiment_results/ColourMNIST_source{SOURCE_THETA}_target{TARGET_THETA}")
+EXPERIMENT_DIR = Path(f"artifacts/experiment_results/NoisyColourMNIST_{STD_COLOUR_NOISE}_source{SOURCE_THETA}_target{TARGET_THETA}")
 
 
 class NoisyColorMNISTExperiment(BaseExperiment):
@@ -89,7 +89,8 @@ class NoisyColorMNISTExperiment(BaseExperiment):
             num_runs=num_runs,
             device=device,
             CLEAN_EPOCHS=CLEAN_EPOCHS,
-            PRETRAINING_EPOCHS=PRETRAINING_EPOCHS
+            PRETRAINING_EPOCHS=PRETRAINING_EPOCHS,
+            STD_COLOUR_NOISE=STD_COLOUR_NOISE
         )
 
         self.nn_kwargs = nn_kwargs
