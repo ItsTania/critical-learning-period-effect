@@ -7,7 +7,7 @@ class LogisticRegressionModule(nn.Module):
     Simple logistic regression model for MNIST-style input.
     """
 
-    def __init__(self, input_dim: int, output_dim: int = 10, activation=None): # Always uses softmax
+    def __init__(self, input_dim: int, output_dim: int = 10, activation=None, input_channels=None): # Always uses softmax
         """
         Args:
             input_dim: Flattened input size (

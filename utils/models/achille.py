@@ -18,7 +18,7 @@ def get_activation(name):
     else:
         raise ValueError(f"Unknown activation function: {name}")
 class Achille_MNIST_FC(nn.Module):
-    def __init__(self, input_dim, activation="relu"):
+    def __init__(self, input_dim, activation="relu", input_channels=None):
         super(Achille_MNIST_FC, self).__init__()
         self.flatten = nn.Flatten()
         
@@ -51,7 +51,7 @@ class Achille_MNIST_FC(nn.Module):
         return x
 
 class Achille_MNIST_FC_No_BatchNorm(nn.Module):
-    def __init__(self, input_dim, activation="relu"):
+    def __init__(self, input_dim, activation="relu", input_channels=None):
         super(Achille_MNIST_FC_No_BatchNorm, self).__init__()
         self.flatten = nn.Flatten()
         

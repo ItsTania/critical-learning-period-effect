@@ -26,6 +26,7 @@ class BasicClassifierModule(nn.Module):
             output_dim=10,
             number_of_layers=3,
             activation = 'relu',
+            input_channels=None,
     ):
         super(BasicClassifierModule, self).__init__()
 
@@ -51,7 +52,8 @@ class ChokepointClassifierModule(nn.Module):
             output_dim=10,
             number_of_layers=3,
             activation = 'relu',
-            scale=4
+            scale=4,
+            input_channels=None
     ):
         super(ChokepointClassifierModule, self).__init__()
 

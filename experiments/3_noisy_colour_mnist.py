@@ -207,17 +207,17 @@ if __name__ == "__main__":
         {
             "run_name": "MLP_w_depth_3",
             "model_cls": BasicClassifierModule,
-            "input_channels":1
+            "input_channels":None
         },
         {
             "run_name": "Bottleneck_w_width_3",
             "model_cls": BottleneckClassifierModule,
-            "input_channels":1
+            "input_channels":None
         },
         {
             "run_name": "LogisticRegression",
             "model_cls": LogisticRegressionModule,
-            "input_channels":1
+            "input_channels":None
         },
         {
             "run_name": "CNN",
