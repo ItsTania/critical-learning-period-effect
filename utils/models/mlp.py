@@ -81,7 +81,8 @@ class BottleneckClassifierModule(nn.Module):
             output_dim=10,
             bottleneck=3,
             activation = F.relu,
-            scale=4
+            scale=4,
+            input_channels=None
     ):
         super(BottleneckClassifierModule, self).__init__()
 
