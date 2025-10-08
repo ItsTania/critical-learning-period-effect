@@ -61,6 +61,7 @@ class ColorMNISTExperiment(BaseExperiment):
         device=None,
         optimizer_cls = torch.optim.Adam,
         criterion_cls = torch.nn.CrossEntropyLoss,
+        input_channels = 1,
         **nn_kwargs
     ):
         super().__init__(experiment_dir, num_runs=num_runs, device=device)
@@ -74,6 +75,7 @@ class ColorMNISTExperiment(BaseExperiment):
         self.batch_size = batch_size
         self.optimizer_cls = optimizer_cls
         self.criterion_cls = criterion_cls
+        self.input_channels = input_channels
 
         # save config
         self._save_config(
@@ -171,6 +173,7 @@ class ColorMNISTExperiment(BaseExperiment):
             classes=self.dataset_classes,
             module__activation=self.activation,
             module__input_dim=self.input_dim,
+            module__input_channels =self.input_channels,
             iterator_train__num_workers=DATALOADER_NUM_WORKERS,
             iterator_train__shuffle=True,
             iterator_train__pin_memory=True,
@@ -194,18 +197,22 @@ if __name__ == "__main__":
         {
             "run_name": "MLP_w_depth_3",
             "model_cls": BasicClassifierModule,
+            "input_channels":1
         },
         {
             "run_name": "Bottleneck_w_width_3",
             "model_cls": BottleneckClassifierModule,
+            "input_channels":1
         },
         {
             "run_name": "LogisticRegression",
             "model_cls": LogisticRegressionModule,
+            "input_channels":1
         },
         {
             "run_name": "CNN",
             "model_cls": CNN,
+            "input_channels":3
         },
     ]
 
@@ -216,7 +223,8 @@ if __name__ == "__main__":
             experiment_dir=experiment_dir,
             num_runs=NUM_RUNS,
             source_theta=SOURCE_THETA,
-            target_theta=TARGET_THETA
+            target_theta=TARGET_THETA,
+            input_channels=cfg["input_channels"],
             )
         
         exp.run_full(
