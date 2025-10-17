@@ -164,26 +164,28 @@ class PermutedMNISTExperiment(BaseExperiment):
             self.data_dir, train=False, download=True, transform=transforms.ToTensor()
         )
 
-        # ---- Load index splits (hard vs complementary) ----
+        # ---- Load in target (hard vs complementary) ----
         target_train_subset, target_hard_subset = self.construct_hard_subset(original_train)
 
-        # ---- Target dataset ----
-        if self.fraction != 1:
-            subset_index = make_fractional_balanced_subset(target_train_subset, self.fraction)
-            target_train_subset = Subset(target_train_subset, subset_index)
-
-        self.target_dataset = set_up_test_dataset(target_train_subset)
-
-        # ---- Source dataset (permuted) ----
-        input_dim = self.target_dataset[0][0].numel()
+        # ---- Load in permuted source (hard vs complementary)----
+        input_dim = target_train_subset[0][0].numel()
         perm = get_permutation(input_dim)
         source_perm_dataset = torchvision.datasets.MNIST(
             self.data_dir, train=True, download=True, transform=PermutePixels(perm)
         )
         source_train_subset, source_hard_subset = self.construct_hard_subset(source_perm_dataset)
+        
+        ## Get a fraction of the dataset - and pad it out so that it is the same length.
         if self.fraction != 1:
-            source_train_subset = Subset(source_train_subset, subset_index)
+            target = set_up_test_dataset(target_train_subset)
+            source = set_up_test_dataset(source_train_subset)
 
+            subset_index = make_fractional_balanced_subset(target, self.fraction)
+            target_train_subset = Subset(target, subset_index)
+            source_train_subset = Subset(source, subset_index)
+
+        # Set Up datasets
+        self.target_dataset = set_up_test_dataset(target_train_subset)
         self.source_dataset = set_up_test_dataset(source_train_subset)
 
 
