@@ -109,7 +109,7 @@ def get_summary_results(df: pd.DataFrame) -> pd.DataFrame:
     return summary_df, metric_cols
 
 
-def smooth_runs(df: pd.DataFrame, smoothing_window=5, debug=False):
+def smooth_runs(df: pd.DataFrame, smoothing_window=5, debug=False, metadata_cols=["run_name", "initialisation", "experiment_group_name", "epoch"]):
     """
     Smooths metric columns per run using moving average and returns a new df in same structure.
 
@@ -124,7 +124,6 @@ def smooth_runs(df: pd.DataFrame, smoothing_window=5, debug=False):
     df_smooth = df.copy()
 
     # Identify metric columns to smooth (numeric metrics except epoch)
-    metadata_cols = ["run_name", "initialisation", "experiment_group_name", "epoch"]
     metric_cols = [c for c in df.columns
                    if c not in metadata_cols and pd.api.types.is_numeric_dtype(df[c])]
 
@@ -208,9 +207,13 @@ def compute_mean_difference(df_summary: pd.DataFrame, metric: str, init1: str, i
 
     return pd.DataFrame(results)
 
+from scipy import stats
+import numpy as np
+
 def print_diff_table(df_diff, show_percent=True):
     """
-    Nicely prints the difference DataFrame in a tabular format.
+    Nicely prints the difference DataFrame in a tabular format, including
+    Welch's t-test (unequal variance) for each row, with t-statistic, df, and p-value.
     """
     # Header
     if show_percent: 
@@ -218,14 +221,14 @@ def print_diff_table(df_diff, show_percent=True):
             f"{'Experiment':<15} | "
             f"{'Init1 Mean':>10} | {'n':>3} | {'SE':>6} | "
             f"{'Init2 Mean':>10} | {'n':>3} | {'SE':>6} | "
-            f"{'Performance Diff ± SE':>17}"
+            f"{'Diff ± SE':>17} | {'t-stat':>7} | {'p-value':>10}"
         )
     else:
         header = (
             f"{'Experiment':<15} | "
             f"{'Init1 Mean':>10} | {'n':>3} | {'SE':>6} | "
             f"{'Init2 Mean':>10} | {'n':>3} | {'SE':>6} | "
-            f"{'Effect (%) ± SE':>17}"
+            f"{'Effect (%) ± SE':>17} | {'t-stat':>7} | {'p-value':>10}"
         )
 
     print(header)
@@ -235,14 +238,36 @@ def print_diff_table(df_diff, show_percent=True):
 
     # Rows
     for _, row in df_diff.iterrows():
-        effect_percent     = row['diff_mean'] * multiplier
-        effect_sem_percent = row['diff_sem'] * multiplier
+        mean1, se1, n1 = row['mean_init1'], row['sem_init1'], row['n_init1']
+        mean2, se2, n2 = row['mean_init2'], row['sem_init2'], row['n_init2']
+
+        # Difference and its SE
+        effect = (mean2 - mean1) 
+        effect_sem = np.sqrt(se1**2 + se2**2) 
+
+        # Welch's t-test
+        t_stat = (mean2 - mean1) / np.sqrt(se1**2 + se2**2)
+        df = (se1**2 + se2**2)**2 / ((se1**4)/(n1-1) + (se2**4)/(n2-1))
+        p_val = 2 * stats.t.sf(np.abs(t_stat), df)
+
+        # Visualise as percent if needed
+        mean1 = mean1 * multiplier
+        mean2 = mean2 * multiplier
+        se1 = se1 * multiplier
+        se2 = se2 * multiplier
+        effect = effect * multiplier
+        effect_sem = effect_sem * multiplier
+
+        p_str = f"{p_val:.3g}"  # 3 significant figures
+        df_str = f"{df:.1f}"
         print(
             f"{row['experiment_group_name']:<15} | "
-            f"{row['mean_init1']:>10.4f} | {row['n_init1']:>3} | {row['sem_init1']:>6.4f} | "
-            f"{row['mean_init2']:>10.4f} | {row['n_init2']:>3} | {row['sem_init2']:>6.4f} | "
-            f"{effect_percent:>7.2f} ± {effect_sem_percent:.2f}"
+            f"{mean1:>10.4f} | {n1:>3} | {se1:>6.4f} | "
+            f"{mean2:>10.4f} | {n2:>3} | {se2:>6.4f} | "
+            f"{effect:>7.2f} ± {effect_sem:.2f} | "
+            f"{t_stat:>7.2f} | {p_str} ({df_str})"
         )
+
 
 def diff_to_latex(df_diff, caption="Final epoch differences", label="tab:diff_table", show_percent=False):
     """
@@ -263,22 +288,31 @@ def diff_to_latex(df_diff, caption="Final epoch differences", label="tab:diff_ta
     # Create a clean table for LaTeX
     latex_df = df_diff.copy()
     latex_df['Avg Performance Diff ± SE'] = (latex_df['diff_mean']*scale).round(2).astype(str) + " ± " + (latex_df['diff_sem']*scale).round(2).astype(str)
+
+    # Add Welch t-test column
+    latex_df["Welch p-value (df)"] = latex_df.apply(lambda row: welch_t_test_str(
+        row['mean_init1'], row['sem_init1'], row['n_init1'],
+        row['mean_init2'], row['sem_init2'], row['n_init2'],
+        sig_figs=3,
+        two_tailed=True  # change to False if one-tailed
+    ), axis=1)
     
     # Select and rename columns
     latex_df = latex_df[[
         'experiment_group_name',
         'mean_init1', 'sem_init1', 'n_init1',
         'mean_init2', 'sem_init2', 'n_init2',
-        'Avg Performance Diff ± SE'
+        'Avg Performance Diff ± SE',
+        'Welch p-value (df)'
     ]]
 
     cols = ['mean_init1', 'sem_init1', 'mean_init2', 'sem_init2']
     if show_percent:
-        latex_df[cols] = latex_df[cols].apply(lambda x: x*100)
+        latex_df[cols] = latex_df[cols].apply(lambda x: (x*100).map(lambda v: f"{v:.1f}"))
 
     latex_df.columns = [
         'Experiment', 'Init1 Mean', 'n', 'SE',
-        'Init2 Mean', 'n', 'SE', f'{col_name} $\\pm$ SE'
+        'Init2 Mean', 'n', 'SE', f'{col_name} $\\pm$ SE', 'Welch p-value (df)'
     ]
 
     # Generate LaTeX string
@@ -286,6 +320,36 @@ def diff_to_latex(df_diff, caption="Final epoch differences", label="tab:diff_ta
                                   caption=caption,
                                   label=label,
                                   float_format="%.3f",
-                                  column_format='lrrrrrrr',
+                                  column_format='lrrrrrrrr',
                                   escape=False)
     return latex_str
+
+
+def welch_t_test_str(mean1, se1, n1, mean2, se2, n2, sig_figs=3, two_tailed=True):
+    """
+    Compute Welch's t-test manually and return formatted 'p (df)' string.
+    Uses scipy.stats.t.sf for p-value.
+    """
+    if  n1 <= 1 or n2 <= 1:
+        return "N.A"
+
+    # Standard error of difference
+    sed = np.sqrt(se1**2 + se2**2)
+
+    # t-statistic
+    t_stat = (mean1 - mean2) / sed
+
+    # Welch–Satterthwaite degrees of freedom
+    df = (se1**2 + se2**2)**2 / (
+        (se1**2)**2 / (n1 - 1) + (se2**2)**2 / (n2 - 1)
+    )
+
+    # p-value
+    if two_tailed:
+        p_val = 2 * stats.t.sf(np.abs(t_stat), df)
+    else:
+        p_val = stats.t.sf(np.abs(t_stat), df)
+
+    # Format nicely
+    p_str = f"{p_val:.{sig_figs}g}"
+    return f"{p_str} ({df:.1f})"

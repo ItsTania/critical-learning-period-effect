@@ -201,7 +201,8 @@ def set_up_test_dataset(dataset) -> skorch.dataset.Dataset:
 def combine_experiment_histories(
     histories: List[Path],
     save_dir,
-    save_name: str = "combined_results.csv"
+    save_name: str = "combined_results.csv",
+    read_config: bool=False
     ) -> pd.DataFrame:
 
     all_histories = []
@@ -218,6 +219,25 @@ def combine_experiment_histories(
         df["run_name"] = hist_path.parent.name
         df["initialisation"] = hist_path.parent.parent.name
         df["experiment_group_name"] = hist_path.parent.parent.parent.name
+
+        if read_config:
+            config_path = hist_path.parent.parent / "config.json"
+            if config_path.exists():
+                try:
+                    with open(config_path, "r") as f:
+                        config = json.load(f)
+                    # Add all config keys to df with "identifier__" prefix
+                    for k, v in config.items():
+                        # Try to convert numeric strings to float if possible
+                        try:
+                            v_num = float(v)
+                            df[f"identifier__{k}"] = v_num
+                        except:
+                            df[f"identifier__{k}"] = v
+                except Exception as e:
+                    print(f"Failed to read config {config_path}: {e}")
+            else:
+                print(f"Config file not found at {config_path}")
 
         all_histories.append(df)
 
