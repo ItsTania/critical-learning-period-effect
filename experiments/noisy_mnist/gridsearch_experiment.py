@@ -29,7 +29,10 @@ import numpy as np
 from experiments.base_experiment import BaseExperiment, set_up_test_dataset, combine_experiment_histories, find_all_histories
 
 NUM_RUNS=1
+
 DATALOADER_NUM_WORKERS=4
+PREFETCH=4
+
 SOURCE_THETA = 0 # 0 is random while 1 is spurrious
 TARGET_THETA = 0
 EVAL_THETA = 0
@@ -197,6 +200,7 @@ class ColorMNISTGridExperiment(BaseExperiment):
             iterator_train__num_workers=DATALOADER_NUM_WORKERS,
             iterator_train__shuffle=True,
             iterator_train__pin_memory=True,
+            iterator_train__prefetch_factor=PREFETCH,
             warm_start=finetuning,
         )
 
@@ -222,14 +226,15 @@ if __name__ == "__main__":
 
     # Get hyperparameters to search through
 
-    input_noises = [(i,i,i) for i in [0.0, 0.1, 0.3, 0.4, 0.5]]
-    colour_noises = [0.01, 0.05, 0.1, 0.5]
-    models = [("MLP", BasicClassifierModule), ("AchilleNoBatchnorm", Achille_MNIST_FC_No_BatchNorm)]
+    thetas = [0.9, 0.95, 0.99, 0.995]
+    input_noises = [(0.3, 0.3, 0.3)] #[(i,i,i) for i in [0.0, 0.1, 0.3, 0.4, 0.5]]
+    colour_noises = [0.1] #[0.01, 0.05, 0.1, 0.5]
+    models = [("MLP", BasicClassifierModule)] #[("MLP", BasicClassifierModule), ("AchilleNoBatchnorm", Achille_MNIST_FC_No_BatchNorm)]
 
-    grid = list(itertools.product(input_noises, colour_noises, models))
+    grid = list(itertools.product(input_noises, colour_noises, models, thetas))
 
     # Go through it
-    for inp_noise, col_noise, (model_name, model) in grid:
+    for inp_noise, col_noise, (model_name, model), theta in grid:
         exp_name = f"{model_name}_theta{TARGET_THETA}_input{inp_noise}_colour{col_noise}"
         exp_run_dir = EXPERIMENT_DIR / Path(exp_name)
 
@@ -237,14 +242,14 @@ if __name__ == "__main__":
             model_cls=model,
             experiment_dir=exp_run_dir,
             num_runs=NUM_RUNS,
-            theta=TARGET_THETA,
+            theta=theta,
             input_noise=inp_noise,
             colour_noise=col_noise,
             )
 
         exp._save_config(
             model=model_name,
-            theta=TARGET_THETA,
+            theta=theta,
             input_noise=inp_noise,
             colour_noise=col_noise
             )
