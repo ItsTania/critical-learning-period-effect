@@ -104,6 +104,16 @@ class ColorMNISTGridExperiment(BaseExperiment):
         self.source_dataset = None
 
         ## Make the test dataset - gray
+        MNIST_hard_target = NoisyColorMNIST(
+            mnist_dataset=hard_subset,
+            theta=self.theta,
+            colour_noise_std=self.colour_noise,
+            R_input_noise_std=self.input_noise[0],
+            G_input_noise_std=self.input_noise[1],
+            B_input_noise_std=self.input_noise[2],
+            preprocess_image_transform=transform_3ch
+        )
+
         mnist_train_3ch = torchvision.datasets.MNIST(
             self.data_dir, 
             train=True, 
@@ -142,15 +152,16 @@ class ColorMNISTGridExperiment(BaseExperiment):
         B_test = SingleChannelColorMNIST(MNIST_test_gray_1k, channel='B')
 
         self.test_datasets = [
-            ("MNIST_test_target", set_up_test_dataset(full_test)),
-            ("MNIST_hard_gray", set_up_test_dataset(gray_hard_subset)),
-            ("MNIST_subset_test_gray", set_up_test_dataset(MNIST_test_gray_3k)),
-            ("MNIST_test_gray_R", set_up_test_dataset(R_test)),
-            ("MNIST_test_gray_G", set_up_test_dataset(G_test)),
-            ("MNIST_test_gray_B", set_up_test_dataset(B_test)),
-            ("MNIST_test_R", set_up_test_dataset(R_channel_test)),
-            ("MNIST_test_G", set_up_test_dataset(G_channel_test)),
-            ("MNIST_test_B", set_up_test_dataset(B_channel_test)),
+            ("MNIST_test_target", set_up_test_dataset(full_test, device=self.device)),
+            ("MNIST_hard_target", set_up_test_dataset(MNIST_hard_target, device=self.device)),
+            ("MNIST_hard_gray", set_up_test_dataset(gray_hard_subset, device=self.device)),
+            ("MNIST_subset_test_gray", set_up_test_dataset(MNIST_test_gray_3k, device=self.device)),
+            ("MNIST_test_gray_R", set_up_test_dataset(R_test, device=self.device)),
+            ("MNIST_test_gray_G", set_up_test_dataset(G_test, device=self.device)),
+            ("MNIST_test_gray_B", set_up_test_dataset(B_test, device=self.device)),
+            ("MNIST_test_R", set_up_test_dataset(R_channel_test, device=self.device)),
+            ("MNIST_test_G", set_up_test_dataset(G_channel_test, device=self.device)),
+            ("MNIST_test_B", set_up_test_dataset(B_channel_test, device=self.device)),
         ]
 
         # Set input dimension
