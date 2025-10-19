@@ -182,7 +182,7 @@ class BaseExperiment(ABC):
 
         return new_train_subset, hard_subset
 
-def set_up_test_dataset(dataset, device=None) -> skorch.dataset.Dataset:
+def set_up_test_dataset(dataset) -> skorch.dataset.Dataset:
     X_list, y_list = [], []
     for i in range(len(dataset)):
         x, y = dataset[i]
@@ -192,10 +192,6 @@ def set_up_test_dataset(dataset, device=None) -> skorch.dataset.Dataset:
     # Stack into tensors
     X_tensor = torch.stack(X_list) # shape (N, H, W) or (N, C, H, W)
     y_tensor = torch.tensor(y_list, dtype=torch.long)
-
-    if device is not None:
-        X_tensor = X_tensor.to(device)
-        y_tensor = y_tensor.to(device)
 
     # Step 3: Wrap in TensorDataset
     test_dataset = skorch.dataset.Dataset(X_tensor, y_tensor)

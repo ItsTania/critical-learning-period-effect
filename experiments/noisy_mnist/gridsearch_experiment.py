@@ -155,16 +155,16 @@ class ColorMNISTGridExperiment(BaseExperiment):
         B_test = SingleChannelColorMNIST(MNIST_test_gray_1k, channel='B')
 
         self.test_datasets = [
-            ("MNIST_test_target", set_up_test_dataset(full_test, device=self.device)),
-            ("MNIST_hard_target", set_up_test_dataset(MNIST_hard_target, device=self.device)),
-            ("MNIST_hard_gray", set_up_test_dataset(gray_hard_subset, device=self.device)),
-            ("MNIST_subset_test_gray", set_up_test_dataset(MNIST_test_gray_3k, device=self.device)),
-            ("MNIST_test_gray_R", set_up_test_dataset(R_test, device=self.device)),
-            ("MNIST_test_gray_G", set_up_test_dataset(G_test, device=self.device)),
-            ("MNIST_test_gray_B", set_up_test_dataset(B_test, device=self.device)),
-            ("MNIST_test_R", set_up_test_dataset(R_channel_test, device=self.device)),
-            ("MNIST_test_G", set_up_test_dataset(G_channel_test, device=self.device)),
-            ("MNIST_test_B", set_up_test_dataset(B_channel_test, device=self.device)),
+            ("MNIST_test_target", set_up_test_dataset(full_test)),
+            ("MNIST_hard_target", set_up_test_dataset(MNIST_hard_target)),
+            ("MNIST_hard_gray", set_up_test_dataset(gray_hard_subset)),
+            ("MNIST_subset_test_gray", set_up_test_dataset(MNIST_test_gray_3k)),
+            ("MNIST_test_gray_R", set_up_test_dataset(R_test)),
+            ("MNIST_test_gray_G", set_up_test_dataset(G_test)),
+            ("MNIST_test_gray_B", set_up_test_dataset(B_test)),
+            ("MNIST_test_R", set_up_test_dataset(R_channel_test)),
+            ("MNIST_test_G", set_up_test_dataset(G_channel_test)),
+            ("MNIST_test_B", set_up_test_dataset(B_channel_test)),
         ]
 
         # Set input dimension
@@ -201,6 +201,7 @@ class ColorMNISTGridExperiment(BaseExperiment):
             iterator_train__shuffle=True,
             iterator_train__pin_memory=True,
             iterator_train__prefetch_factor=PREFETCH,
+            iterator_train__persistent_workers=True,
             warm_start=finetuning,
         )
 
